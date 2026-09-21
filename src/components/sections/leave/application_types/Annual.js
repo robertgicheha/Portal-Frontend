@@ -1,7 +1,6 @@
 import React, { useState, useContext, useEffect } from "react";
 import BreadCrumb from "../../BreadCrumb";
 import { useForm } from "react-hook-form";
-import moment from "moment";
 import { GlobalContext } from "../../../../context/GlobalState";
 import Menu from "../../../layout/Menu";
 import Loader from "react-loader-spinner";

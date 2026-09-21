@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
-import { UploadCloud, X, Edit } from "react-feather";
+import { Edit } from "react-feather";
 import _ from "lodash";
 
 const Add = ({ setaddEducation, addQualification, isUpdatingProfile }) => {
@@ -13,14 +13,6 @@ const Add = ({ setaddEducation, addQualification, isUpdatingProfile }) => {
   };
 
   const [startYear, setStartYear] = useState(1960);
-
-  const [attachments, setAttachments] = useState([]);
-
-  const handleChangeFile = (e) => {
-    console.log(e.target.files);
-
-    setAttachments(e.target.files);
-  };
 
   return (
     <>

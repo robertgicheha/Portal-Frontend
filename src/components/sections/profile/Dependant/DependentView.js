@@ -1,7 +1,5 @@
 import React, { useContext, useEffect } from "react";
 import { GlobalContext } from "../../../../context/GlobalState";
-import { UsergroupDeleteOutlined } from "@ant-design/icons";
-import { Edit, Trash2 } from "react-feather";
 
 const DependentView = ({ setaddDependant, dependant_count }) => {
   const { dependant_info, getAllDependents } = useContext(GlobalContext);
@@ -10,6 +8,7 @@ const DependentView = ({ setaddDependant, dependant_count }) => {
     getAllDependents();
 
     return () => {};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const KinSection = ({ k, i }) => {

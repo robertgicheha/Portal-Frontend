@@ -1,5 +1,5 @@
 import React from "react";
-import { Edit, Trash2 } from "react-feather";
+import { Edit } from "react-feather";
 import moment from "moment";
 
 const List = ({ l, setediting }) => {

@@ -44,21 +44,16 @@ import OutOfOffice from "./pages/OutOfOffice";
 import Apply from "./components/sections/out_of_office/Apply";
 import Objective from "./components/sections/appraisal/Objective";
 import Development from "./components/sections/appraisal/Development";
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import ManageObjectives from "./components/sections/appraisal/ManageObjectives";
 import ManageDevelopment from "./components/sections/appraisal/ManageDevelopment";
 import Attendance from "./pages/Attendance";
 
 import Cookies from "js-cookie";
-import jwt from "jwt-simple";
 
-import { useLocation } from "react-router-dom";
 import InternalVacancies from "./pages/InternalVacancies";
 import Resources from "./pages/Resources";
 import JobDetails from "./components/sections/vacancies/JobDetails";
 import SendApplication from "./components/sections/vacancies/SendApplication";
-
-ChartJS.register(ArcElement, Tooltip, Legend);
 
 const App = (props) => {
   const clearCacheData = () => {
@@ -68,10 +63,6 @@ const App = (props) => {
       });
     });
     // alert("Complete Cache Cleared");
-  };
-
-  const checkIdleness = () => {
-    console.log("Test user idleness");
   };
 
   const checkTokenAge = () => {
@@ -96,10 +87,6 @@ const App = (props) => {
     //   }
     // }
   };
-
-  let location = useLocation();
-
-  location = location.pathname.split("/")[1];
 
   useEffect(() => {
     // checkIdleness();

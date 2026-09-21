@@ -1,5 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
-import { withRouter, Redirect } from "react-router-dom";
+import React, { useContext, useState } from "react";
 import { useForm } from "react-hook-form";
 import { GlobalContext } from "../../context/GlobalState";
 import Loader from "react-loader-spinner";
@@ -21,6 +20,8 @@ const Login = () => {
     userCheck,
     checkUsername,
     shouldChangePassword,
+    devLogin,
+    handleLogout,
   } = useContext(GlobalContext);
 
   const { register, handleSubmit, errors } = useForm();
@@ -50,9 +51,48 @@ const Login = () => {
       to = "/";
     }
 
+    // In dev, an existing session (e.g. from the "continue without login"
+    // button) would otherwise silently bounce this page away before the
+    // real sign-in form could ever be reached again. Give a way out
+    // instead of auto-redirecting blind.
+    if (process.env.NODE_ENV !== "production") {
+      return (
+        <div className="page">
+          <div className="container">
+            <div className="auth-card">
+              <CompanySide />
+              <div className="auth-side">
+                <AuthHeader instruction="You're already signed in" />
+                <div className="row">
+                  <div className="col-12">
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => window.location.assign(to)}
+                    >
+                      Continue to app
+                    </button>
+                  </div>
+                  <div className="col-12">
+                    <button
+                      type="button"
+                      className="extra-btn"
+                      onClick={() => handleLogout()}
+                    >
+                      Log out and sign in again
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     // Force navigation
     window.location.assign(to); // Or use window.location.href = to;
 
+    return null;
     // return <Redirect to={to} />;
   } else {
     if (userCheck) {
@@ -140,6 +180,19 @@ const Login = () => {
                         from the office
                       </p>
                     </div>
+                    {process.env.NODE_ENV !== "production" && (
+                      <div className="col-12">
+                        <button
+                          type="button"
+                          className="extra-btn"
+                          onClick={() =>
+                            devLogin("dev.tester@micglobalrisks.com")
+                          }
+                        >
+                          Dev only: continue without login
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

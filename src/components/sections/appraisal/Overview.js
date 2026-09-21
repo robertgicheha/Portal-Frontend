@@ -13,14 +13,7 @@ const Overview = ({ user_info, globals }) => {
     .format("DD/MM/YYYY")
     .split("/")[2];
 
-  const [year, setYear] = useState(2024);
-
-  const report = [
-    { progress: 100, year: 2022 },
-    { progress: 78, year: 2021 },
-    { progress: 99, year: 2020 },
-    { progress: 45, year: 2019 },
-  ];
+  const [, setYear] = useState(2024);
 
   const setting = {
     dots: false,

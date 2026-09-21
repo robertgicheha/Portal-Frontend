@@ -1,6 +1,5 @@
 import React from "react";
 import BreadCrumb from "../BreadCrumb";
-import moment from "moment";
 import { Link } from "react-router-dom";
 import { ArrowRightCircle } from "react-feather";
 

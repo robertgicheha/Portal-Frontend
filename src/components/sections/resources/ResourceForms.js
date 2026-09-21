@@ -1,8 +1,17 @@
-import React from "react";
+import React, { useContext } from "react";
 import { Link } from "react-router-dom";
-import { ExternalLink, FileText } from "react-feather";
+import { FileText } from "react-feather";
+import { GlobalContext } from "../../../context/GlobalState";
 
 const ResourceForms = () => {
+  const { user_info } = useContext(GlobalContext);
+
+  const itPolicyAwarenessLink = user_info?.CompanyEmail
+    ? `/resources/it-policy-awareness.html?username=${encodeURIComponent(
+        user_info.CompanyEmail
+      )}`
+    : "/resources/it-policy-awareness.html";
+
   const quicks = [
     {
       title: "MIC Beneficiary Form",
@@ -89,6 +98,12 @@ const ResourceForms = () => {
       link: "/documents/staff/mic/Grievance Handling Policy & Procedure 2025 - MIC.pdf",
       btn_text: "Download",
     },
+    {
+      title: "IT Policy Awareness",
+      link: itPolicyAwarenessLink,
+      btn_text: "Click to View",
+      download: false,
+    },
   ];
   return (
     <>
@@ -102,7 +117,7 @@ const ResourceForms = () => {
                   to={q.link}
                   target="_blank"
                   rel="noopener noreferrer"
-                  download
+                  download={q.download !== false}
                 >
                   <FileText size={19} />
                   &nbsp;{q.btn_text}

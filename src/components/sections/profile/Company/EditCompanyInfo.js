@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { useForm } from "react-hook-form";
 import moment from "moment";
 import { job_titles, position } from "../../../../utils/helpers";
@@ -10,7 +10,7 @@ const EditCompanyInfo = ({
   globals,
   isUpdatingProfile,
 }) => {
-  const { register, handleSubmit, errors, reset } = useForm();
+  const { register, handleSubmit, errors } = useForm();
 
   const onSubmit = (data) => {
     let inputs = {};

@@ -34,27 +34,27 @@ const LeaveManagement = (props) => {
 
   return (
     <>
+      {/* Header renders unconditionally: it's what triggers the data
+          fetches that flip isLoading, so gating it on isLoading itself
+          creates a mount -> fetch -> hide -> resolve -> remount loop
+          whenever that fetch keeps failing. */}
+      <Header />
       {isLoading && (
-        <>
-          <div className="load_screen">
-            <LoaderScreen text="Loading leave modules" />
-          </div>
-        </>
+        <div className="load_screen">
+          <LoaderScreen text="Loading leave modules" />
+        </div>
       )}
       {!isLoading && (
-        <>
-          <Header />
-          <div className="page">
-            <div className="container">
-              <Menu menu={menu} />
-              <LeaveOverview
-                message={message}
-                leave_info={leave_info}
-                leave_history={leave_history}
-              />
-            </div>
+        <div className="page">
+          <div className="container">
+            <Menu menu={menu} />
+            <LeaveOverview
+              message={message}
+              leave_info={leave_info}
+              leave_history={leave_history}
+            />
           </div>
-        </>
+        </div>
       )}
     </>
   );

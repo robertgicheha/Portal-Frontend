@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect } from "react";
+import React, { useContext, useEffect } from "react";
 import Menu from "../components/layout/Menu";
 import BreadCrumb from "../components/sections/BreadCrumb";
 import { GlobalContext } from "../context/GlobalState";
@@ -8,11 +8,6 @@ import QuickHowTos from "../components/sections/howto/QuickHowTos";
 import Header from "../components/layout/Header";
 
 const HowTo = () => {
-  const [state, setstate] = useState({
-    query: "",
-    results: [],
-  });
-
   const { isLoading } = useContext(GlobalContext);
 
   const menu = {
@@ -25,32 +20,28 @@ const HowTo = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
 
-  const handleSearch = () => {
-    //will handle the search
-  };
-
   return (
     <>
+      {/* Header renders unconditionally: it's what triggers the data
+          fetches that flip isLoading, so gating it on isLoading itself
+          creates a mount -> fetch -> hide -> resolve -> remount loop
+          whenever that fetch keeps failing. */}
+      <Header />
       {isLoading && (
-        <>
-          <div className="load_screen">
-            <LoaderScreen text="Loading your profile info" />
-          </div>
-        </>
+        <div className="load_screen">
+          <LoaderScreen text="Loading your profile info" />
+        </div>
       )}
       {!isLoading && (
-        <>
-          <Header />
-          <div className="page">
-            <div className="container staff">
-              <Menu menu={menu} />
-              <BreadCrumb />
-              {/* <HowToSearch handleSearch={handleSearch} /> */}
-              <QuickHowTos />
-              <br />
-            </div>
+        <div className="page">
+          <div className="container staff">
+            <Menu menu={menu} />
+            <BreadCrumb />
+            {/* <HowToSearch handleSearch={handleSearch} /> */}
+            <QuickHowTos />
+            <br />
           </div>
-        </>
+        </div>
       )}
     </>
   );

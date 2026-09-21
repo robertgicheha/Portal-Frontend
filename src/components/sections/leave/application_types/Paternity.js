@@ -1,14 +1,12 @@
 import React, { useState, useContext, useEffect } from "react";
 import BreadCrumb from "../../BreadCrumb";
 import { useForm } from "react-hook-form";
-import moment from "moment";
 import { GlobalContext } from "../../../../context/GlobalState";
 import Menu from "../../../layout/Menu";
 import Loader from "react-loader-spinner";
 import { Send } from "react-feather";
-import { Link, Redirect } from "react-router-dom";
+import { Link } from "react-router-dom";
 import Header from "../../../layout/Header";
-import { ContactsOutlined } from "@ant-design/icons";
 import Guidelines from "../../../reusables/Guidlines";
 import { paternity_leave_guidelines } from "../../../../utils/helpers";
 
@@ -32,8 +30,7 @@ const Paternity = (props) => {
     reset();
   };
 
-  const { message, applyForLeave, leave_info, getLeaveDetails } =
-    useContext(GlobalContext);
+  const { message, applyForLeave, getLeaveDetails } = useContext(GlobalContext);
 
   const menu = {
     title: "Paternity Leave",

@@ -1,4 +1,4 @@
-export default (state, action) => {
+const AppReducer = (state, action) => {
   // console.log("state ", state);
   // console.log("action", action.type);
   // console.log("payload", action.payload);
@@ -183,3 +183,5 @@ export default (state, action) => {
       return state;
   }
 };
+
+export default AppReducer;

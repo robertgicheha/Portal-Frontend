@@ -1,5 +1,4 @@
 import React, { useState, useContext, useEffect } from "react";
-import { useSelector, useDispatch } from "react-redux";
 import BreadCrumb from "../BreadCrumb";
 import { useForm } from "react-hook-form";
 import { GlobalContext } from "../../../context/GlobalState";
@@ -9,10 +8,6 @@ import Header from "../../layout/Header";
 import Guidelines from "../../reusables/Guidlines";
 
 const Objective = () => {
-  const user = useSelector((state) => state.user.user);
-
-  const dispatch = useDispatch();
-
   const {
     user_info,
     generateAppraisalCode,
@@ -33,14 +28,6 @@ const Objective = () => {
     edit: false,
     // objectives: [],
   });
-
-  const updateRating = (rating) => {
-    // console.log(rating);
-    setState({
-      ...state,
-      rating,
-    });
-  };
 
   const singleObjective = (id, view, action = false) => {
     const the_objective = objectives.filter((o) => o.lineNo === id)[0];

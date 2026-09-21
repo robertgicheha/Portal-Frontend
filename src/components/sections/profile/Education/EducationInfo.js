@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import List from "./List";
 import Add from "./Add";
 import Update from "./Update";

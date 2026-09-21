@@ -126,7 +126,7 @@ const Development = () => {
   };
 
   const getRequiredData = async () => {
-    const results = await getDevelopmentNeeds();
+    await getDevelopmentNeeds();
   };
 
   const guidelines = [
@@ -152,7 +152,7 @@ const Development = () => {
     // eslint-disable-next-line
   }, [message]);
 
-  const { loading, development_view, development, edit } = state;
+  const { development_view, development, edit } = state;
 
   return (
     <>

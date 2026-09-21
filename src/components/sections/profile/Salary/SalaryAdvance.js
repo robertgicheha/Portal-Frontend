@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useContext } from "react";
 import { GlobalContext } from "../../../../context/GlobalState";
 import Menu from "../../../layout/Menu";
 import Header from "../../../layout/Header";
@@ -10,10 +10,6 @@ import Swal from "sweetalert2";
 const SalaryAdvance = () => {
   const { isLoading } = useContext(GlobalContext);
 
-  const [state, setstate] = useState({
-    preview: false,
-  });
-
   const menu = {
     title: "Salary advance",
     subTitle: "Place request for salary advance",
@@ -23,7 +19,7 @@ const SalaryAdvance = () => {
     ],
   };
 
-  const { register, handleSubmit, errors, reset } = useForm();
+  const { register } = useForm();
 
   const requestAdvance = () => {
     Swal.fire({

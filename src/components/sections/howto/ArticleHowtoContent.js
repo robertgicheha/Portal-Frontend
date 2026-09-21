@@ -1,7 +1,6 @@
-import React, { useContext, useEffect, useState } from "react";
+import React from "react";
 import Menu from "../../layout/Menu";
 import BreadCrumb from "../BreadCrumb";
-import { GlobalContext } from "../../../context/GlobalState";
 import ApplyLeave from "./articles/ApplyLeave";
 import Covid19 from "./articles/Covid19";
 import Complaints from "./articles/Complaints";
@@ -9,13 +8,6 @@ import DosDonts from "./articles/DosDonts";
 import OfficeGuidelines from "./articles/OfficeGuidelines";
 
 const ArticleHowtoContent = (props) => {
-  const [state, setstate] = useState({
-    query: "",
-    results: [],
-  });
-
-  const { isLoading } = useContext(GlobalContext);
-
   const menu = {
     title: "Learn how to",
     subTitle: "Find any information you might need",
@@ -40,10 +32,6 @@ const ArticleHowtoContent = (props) => {
         return <h1>Choose article</h1>;
     }
   };
-
-  useEffect(() => {
-    articleToLoad();
-  }, []);
 
   return (
     <>

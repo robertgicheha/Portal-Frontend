@@ -1,7 +1,5 @@
 import React, { useContext, useEffect } from "react";
-import { UsergroupDeleteOutlined } from "@ant-design/icons";
 import { GlobalContext } from "../../../../context/GlobalState";
-import { Edit, Trash2 } from "react-feather";
 
 const NextOfKinView = ({ setKin, next_of_kin_count }) => {
   const { next_of_kin, getAllNextOfKin } = useContext(GlobalContext);
@@ -10,6 +8,7 @@ const NextOfKinView = ({ setKin, next_of_kin_count }) => {
     getAllNextOfKin();
 
     return () => {};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const KinSection = ({ k, i }) => {

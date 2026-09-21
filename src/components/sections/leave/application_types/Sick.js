@@ -14,10 +14,6 @@ import { sick_leave_guidelines } from "../../../../utils/helpers";
 const Sick = () => {
   const { register, handleSubmit, errors, reset } = useForm();
 
-  const guidelines = [
-    "Application should be made at least a day before the desired date of leave",
-  ];
-
   const [state, setState] = useState({
     loading: false,
     leave_type_text: "Annual",

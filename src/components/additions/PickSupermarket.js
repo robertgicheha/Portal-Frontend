@@ -139,7 +139,6 @@ const NEARBY_BRANCHES = {
 
 const PickSupermarket = () => {
   const {
-    user_info,
     isLoading,
     loadingStatus,
     voucher,
@@ -202,6 +201,7 @@ const PickSupermarket = () => {
     },
     [
       getUserVoucherDetails,
+      loadingStatus,
       selectedCode,
       updateSupermarketSelection,
       voucher?.documentNo,

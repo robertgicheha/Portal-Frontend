@@ -8,7 +8,7 @@ import BreadCrumb from "../../sections/BreadCrumb";
 import Overview from "./Overview";
 
 const ClosedTickets = (props) => {
-  const { message, isLoading } = useContext(GlobalContext);
+  const { isLoading } = useContext(GlobalContext);
 
   useEffect(() => {
     // eslint-disable-next-line

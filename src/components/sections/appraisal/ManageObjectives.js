@@ -126,7 +126,7 @@ const ManageObjective = () => {
     // eslint-disable-next-line
   }, [message]);
 
-  const { loading, objective_view, objective } = state;
+  const { objective_view, objective } = state;
 
   if (globals.role === 1) {
     return (

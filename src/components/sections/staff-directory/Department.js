@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { PhoneCall, Mail, Smartphone } from "react-feather";
 import Profile from "../../../images/prof.png";
 

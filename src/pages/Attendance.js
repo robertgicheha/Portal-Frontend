@@ -3,10 +3,8 @@ import { GlobalContext } from "../context/GlobalState";
 import LoaderScreen from "./LoaderScreen";
 import Menu from "../components/layout/Menu";
 import Header from "../components/layout/Header";
-import Overview from "../components/sections/appraisal/Overview";
 import BreadCrumb from "../components/sections/BreadCrumb";
 import { Bar, Pie } from "react-chartjs-2";
-import { head } from "lodash";
 
 const Attendance = () => {
   const weekly_attendance_data = {
@@ -67,42 +65,6 @@ const Attendance = () => {
     },
   };
 
-  const areaData = {
-    labels: ["2013", "2014", "2015", "2016", "2017"],
-    datasets: [
-      {
-        label: "# of Votes",
-        data: [12, 19, 3, 5, 2, 3],
-        backgroundColor: [
-          "rgba(135,75,50, 0.2)",
-          "rgba(135,75,50, 0.2)",
-          "rgba(135,75,50, 0.2)",
-          "rgba(135,75,50, 0.2)",
-          "rgba(135,75,50, 0.2)",
-          "rgba(135,75,50, 0.2)",
-        ],
-        borderColor: [
-          "rgba(135,75,50,1)",
-          "rgba(135,75,50, 1)",
-          "rgba(135,75,50, 1)",
-          "rgba(135,75,50, 1)",
-          "rgba(135,75,50, 1)",
-          "rgba(135,75,50, 1)",
-        ],
-        borderWidth: 1,
-        fill: true, // 3: no fill
-      },
-    ],
-  };
-
-  const areaOptions = {
-    plugins: {
-      filler: {
-        propagate: true,
-      },
-    },
-  };
-
   const doughnutPieData = {
     datasets: [
       {
@@ -132,71 +94,7 @@ const Attendance = () => {
     },
   };
 
-  const scatterChartData = {
-    datasets: [
-      {
-        label: "First Dataset",
-        data: [
-          {
-            x: -10,
-            y: 0,
-          },
-          {
-            x: 0,
-            y: 3,
-          },
-          {
-            x: -25,
-            y: 5,
-          },
-          {
-            x: 40,
-            y: 5,
-          },
-        ],
-        backgroundColor: ["rgba(135,75,50, 0.2)"],
-        borderColor: ["rgba(135,75,50,1)"],
-        borderWidth: 1,
-      },
-      {
-        label: "Second Dataset",
-        data: [
-          {
-            x: 10,
-            y: 5,
-          },
-          {
-            x: 20,
-            y: -30,
-          },
-          {
-            x: -25,
-            y: 15,
-          },
-          {
-            x: -10,
-            y: 5,
-          },
-        ],
-        backgroundColor: ["rgba(135,75,50, 0.2)"],
-        borderColor: ["rgba(135,75,50, 1)"],
-        borderWidth: 1,
-      },
-    ],
-  };
-
-  const scatterChartOptions = {
-    scales: {
-      xAxes: [
-        {
-          type: "linear",
-          position: "bottom",
-        },
-      ],
-    },
-  };
-
-  const { userDetailsToUpdate, user_info_to_update, globals, user_info } =
+  const { userDetailsToUpdate } =
     useContext(GlobalContext);
 
   const { isLoading } = useContext(GlobalContext);
@@ -223,16 +121,18 @@ const Attendance = () => {
 
   return (
     <>
+      {/* Header renders unconditionally: it's what triggers the data
+          fetches that flip isLoading, so gating it on isLoading itself
+          creates a mount -> fetch -> hide -> resolve -> remount loop
+          whenever that fetch keeps failing. */}
+      <Header />
       {isLoading && (
-        <>
-          <div className="load_screen">
-            <LoaderScreen text="Loading leave modules" />
-          </div>
-        </>
+        <div className="load_screen">
+          <LoaderScreen text="Loading leave modules" />
+        </div>
       )}
       {!isLoading && (
         <>
-          <Header />
           <div className="page">
             <div className="container">
               <Menu menu={menu} />

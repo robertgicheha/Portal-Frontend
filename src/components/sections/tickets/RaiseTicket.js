@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useContext } from "react";
-import { GlobalContext } from "../../../context/GlobalState";
+import React, { useEffect } from "react";
 import Menu from "../../layout/Menu";
 import Header from "../../layout/Header";
 import BreadCrumb from "../../sections/BreadCrumb";
@@ -7,9 +6,7 @@ import { useForm } from "react-hook-form";
 import moment from "moment";
 
 const RaiseTicket = (props) => {
-  const { isLoading, raiseTicket } = useContext(GlobalContext);
-
-  const { register, handleSubmit, errors, reset } = useForm();
+  const { register, handleSubmit, errors } = useForm();
 
   useEffect(() => {
     // eslint-disable-next-line

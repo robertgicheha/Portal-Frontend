@@ -2,14 +2,13 @@ import React, { useContext } from "react";
 import { useForm } from "react-hook-form";
 import { EditOutlined } from "@ant-design/icons";
 import { GlobalContext } from "../../../../context/GlobalState";
-import moment from "moment";
 
 const AddDependent = ({ setaddDependant, isUpdatingProfile, update_code }) => {
   const { addDependent } = useContext(GlobalContext);
 
   const relations = ["Son", "Daughter", "Spouse"];
 
-  const { register, handleSubmit, errors, reset, control } = useForm();
+  const { register, handleSubmit, errors } = useForm();
 
   const onSubmit = (data) => {
     data.docNo = update_code;

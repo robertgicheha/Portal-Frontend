@@ -4,18 +4,12 @@ import BreadCrumb from "../components/sections/BreadCrumb";
 import Modules from "../components/sections/Modules";
 import { User } from "react-feather";
 import { GlobalContext } from "../context/GlobalState";
-import LoaderScreen from "./LoaderScreen";
 import Header from "../components/layout/Header";
 import ChristmasBanner from "../components/additions/ChristmasBanner";
 
 const Dashboard = () => {
-  const {
-    user_info,
-    isLoading,
-    loadingStatus,
-    voucher,
-    getUserVoucherDetails,
-  } = useContext(GlobalContext);
+  const { user_info, loadingStatus, voucher, getUserVoucherDetails } =
+    useContext(GlobalContext);
 
   const deadline = voucher?.applicationDeadline; // e.g. "2025-11-30T00:00:00Z"
   const now = new Date();

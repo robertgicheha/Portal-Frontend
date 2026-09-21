@@ -8,7 +8,7 @@ import Overview from "./Overview";
 import user from "../../../images/user.jpg";
 
 const AvailableTechnicians = (props) => {
-  const { message, isLoading } = useContext(GlobalContext);
+  const { isLoading } = useContext(GlobalContext);
 
   useEffect(() => {
     // eslint-disable-next-line

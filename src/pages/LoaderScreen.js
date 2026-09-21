@@ -4,7 +4,7 @@ import { BallBeat } from "react-pure-loaders";
 const Loader = ({ text }) => {
   return (
     <div style={{ margin: "0 auto" }}>
-      <p>
+      <div>
         One moment please ... <br />
         {text}
         <br />
@@ -14,7 +14,7 @@ const Loader = ({ text }) => {
           loading={true}
           style={{ textAlign: "center" }}
         />
-      </p>
+      </div>
     </div>
   );
 };

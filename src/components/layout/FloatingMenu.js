@@ -1,15 +1,10 @@
 import React from "react";
-import { Check, FileText, Flag, Users } from "react-feather";
-import { Link } from "react-router-dom";
-import user from "../../images/prof.png";
 
 const FloatingMenu = ({
   floatingProperties,
   leave_approvals,
   notifications,
 }) => {
-  var moment = require("moment");
-
   return (
     <>
       {/* {floatingProperties.toShow !== null && (

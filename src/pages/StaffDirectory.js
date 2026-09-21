@@ -1,4 +1,4 @@
-import { useState, useContext, useEffect } from "react";
+import { useContext, useEffect } from "react";
 import Menu from "../components/layout/Menu";
 import BreadCrumb from "../components/sections/BreadCrumb";
 // import AllStaff from "../components/sections/staff-directory/AllStaff";
@@ -39,16 +39,18 @@ const StaffDirectory = () => {
 
   return (
     <>
+      {/* Header renders unconditionally: it's what triggers the data
+          fetches that flip isLoading, so gating it on isLoading itself
+          creates a mount -> fetch -> hide -> resolve -> remount loop
+          whenever that fetch keeps failing. */}
+      <Header />
       {isLoading && (
-        <>
-          <div className="load_screen">
-            <LoaderScreen text="Loading staff information" />
-          </div>
-        </>
+        <div className="load_screen">
+          <LoaderScreen text="Loading staff information" />
+        </div>
       )}
       {!isLoading && (
         <>
-          <Header />
           <Menu menu={menu} />
           <div className="page">
             <div className="container staff">

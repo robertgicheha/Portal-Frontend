@@ -1,4 +1,4 @@
-import React, { useContext, useEffect } from "react";
+import React, { useContext } from "react";
 import BreadCrumb from "../BreadCrumb";
 import { Redirect } from "react-router-dom";
 import { GlobalContext } from "../../../context/GlobalState";

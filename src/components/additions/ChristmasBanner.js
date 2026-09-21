@@ -1,7 +1,5 @@
 import React from "react";
-import { Link } from "react-router-dom";
 import banner from "../../images/banners/xmasbanner2.jpg";
-import Moment from "react-moment";
 
 const ChristmasBanner = ({ voucher }) => {
   // Handle loading/empty state: render nothing

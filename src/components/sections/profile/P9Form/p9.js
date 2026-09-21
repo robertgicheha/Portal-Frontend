@@ -6,7 +6,7 @@ import LoaderScreen from "../../../../pages/LoaderScreen";
 import { Link } from "react-router-dom";
 import Header from "../../../layout/Header";
 import { useForm } from "react-hook-form";
-import { ChevronsLeft, Download, FileText } from "react-feather";
+import { ChevronsLeft, FileText } from "react-feather";
 import _ from "lodash";
 
 const PNine = () => {
@@ -42,12 +42,6 @@ const PNine = () => {
     ],
   };
 
-  const currentYear = () => {
-    const year = new Date().getFullYear();
-
-    return year;
-  };
-
   const employeeJoinDate = () => {
     let joined = new Date(user_info.DateJoined ? user_info.DateJoined : "");
 
@@ -66,12 +60,6 @@ const PNine = () => {
     getPNine(data.year, leave_info.empNo);
 
     reset();
-  };
-
-  const getYear = () => {
-    const year = new Date().getFullYear();
-
-    return year;
   };
 
   useEffect(() => {

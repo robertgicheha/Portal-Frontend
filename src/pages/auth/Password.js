@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from "react";
-import { withRouter, Redirect } from "react-router-dom";
+import { Redirect } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { GlobalContext } from "../../context/GlobalState";
 import Loader from "react-loader-spinner";

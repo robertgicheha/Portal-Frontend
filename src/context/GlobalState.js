@@ -5,11 +5,7 @@ import jwt from "jwt-simple";
 import { encryptData, decryptData } from "../utils/helpers";
 import Cookies from "js-cookie";
 import Swal from "sweetalert2";
-import { v4 as uuidv4 } from "uuid";
-import { ContactsOutlined } from "@ant-design/icons";
-import { createBrowserHistory } from "history";
 // import _ from "lodash";
-import { useLocation } from "react-router-dom";
 
 const initialState = {
   access_token: null,
@@ -57,10 +53,6 @@ const initialState = {
 export const GlobalContext = createContext(initialState);
 
 export const GlobalProvider = ({ children }) => {
-  const history = createBrowserHistory();
-
-  // const location = useLocation();
-
   const [state, dispatch] = useReducer(AppReducer, initialState);
 
   const addCookie = (payload, cookie_name) => {
@@ -77,37 +69,41 @@ export const GlobalProvider = ({ children }) => {
     });
   };
 
-  const deleteCookie = () => {
-    var cookie = document.cookie.split(";");
-
-    for (var i = 0; i < cookie.length; i++) {
-      var chip = cookie[i],
-        entry = chip.split("="),
-        name = entry[0];
-
-      Cookies.remove(name);
-
-      document.cookie = name + "=; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
-    }
-  };
-
   // Base URL for the API
   // hint: remember to remove trailling slash
   const baseURL = "https://portal.micglobalrisks.com:8082/portal/v1.0/api";
 
+  // This recovered source tree has no .env, so REACT_APP_SECRET is
+  // undefined at runtime -- jwt-simple's decode() unconditionally calls
+  // key.toString() before it even looks at the token, so an undefined
+  // secret crashes every decode. Falling back to a local-only constant
+  // keeps decode() from throwing; it still won't verify a token signed by
+  // the real production secret, but that's a separate, pre-existing gap
+  // in this environment, not something decode() should crash the app over.
+  const jwtSecret = process.env.REACT_APP_SECRET || "local-dev-secret";
+
   function tokenInfo() {
     if (localStorage.LOGIN_INFO) {
-      var secret = process.env.REACT_APP_SECRET;
       var token = localStorage.LOGIN_INFO;
 
-      var decoded = jwt.decode(token, secret);
-      return decoded;
+      try {
+        return jwt.decode(token, jwtSecret);
+      } catch (e) {
+        // Corrupted, mismatched-secret, or otherwise undecodable token --
+        // treat it the same as "not logged in" instead of crashing, and
+        // clear it so it doesn't keep failing on every future call.
+        localStorage.removeItem("LOGIN_INFO");
+        Cookies.remove("refresh_token");
+        return false;
+      }
     }
     return false;
   }
 
   function setGlobalInfo() {
     const check_token = tokenInfo();
+
+    if (!check_token) return;
 
     dispatch({
       type: "SET_GLOBAL_INFO",
@@ -126,8 +122,12 @@ export const GlobalProvider = ({ children }) => {
     let login = false;
 
     if (Cookies.get("refresh_token")) {
-      login = true;
-      setGlobalInfo();
+      // tokenInfo() clears refresh_token/LOGIN_INFO itself if the stored
+      // token turns out to be undecodable, so checking it here (rather
+      // than trusting cookie presence alone) avoids briefly reporting
+      // isLoggedin=true for a session that's actually already dead.
+      login = !!tokenInfo();
+      if (login) setGlobalInfo();
     }
 
     dispatch({
@@ -173,8 +173,6 @@ export const GlobalProvider = ({ children }) => {
       payload: action,
     });
   }
-
-  let cancel;
 
   async function updatePassword(inputs) {
     inputs.email = localStorage.username;
@@ -227,33 +225,42 @@ export const GlobalProvider = ({ children }) => {
       },
     };
 
-    const res = await axios.post(`${baseURL}/user/check_user`, inputs, config);
+    try {
+      const res = await axios.post(
+        `${baseURL}/user/check_user`,
+        inputs,
+        config
+      );
 
-    if (res.data.error) {
-      setMessage(res.data.message + ". Please contact Admin");
-    }
-
-    if (!res.data.error) {
-      if (res.data.data === undefined) {
-        Swal.fire({
-          icon: "info",
-          html: "<h5>Server is under maintenance.<br/> Please try again later</h5>",
-        });
-      } else {
-        const { username, password_changed } = res.data.data;
-
-        const payload = {
-          userchecked: true,
-          updatepass: !password_changed,
-        };
-
-        dispatch({
-          type: "CHECK_USER",
-          payload,
-        });
-
-        localStorage.username = username;
+      if (res.data.error) {
+        setMessage(res.data.message + ". Please contact Admin");
       }
+
+      if (!res.data.error) {
+        if (res.data.data === undefined) {
+          Swal.fire({
+            icon: "info",
+            html: "<h5>Server is under maintenance.<br/> Please try again later</h5>",
+          });
+        } else {
+          const { username, password_changed } = res.data.data;
+
+          const payload = {
+            userchecked: true,
+            updatepass: !password_changed,
+          };
+
+          dispatch({
+            type: "CHECK_USER",
+            payload,
+          });
+
+          localStorage.username = username;
+        }
+      }
+    } catch (error) {
+      if (axios.isCancel(error)) return;
+      setMessage("Could not reach the server. Please check your connection and try again.");
     }
 
     loadingStatus(false);
@@ -308,9 +315,40 @@ export const GlobalProvider = ({ children }) => {
       }
     } catch (error) {
       if (axios.isCancel(error)) return;
+      setMessage("Could not reach the server. Please check your connection and try again.");
     }
 
     loadingStatus(false);
+  }
+
+  // Local-dev-only bypass so the authenticated part of the app can be
+  // exercised without a real backend login. Guarded on NODE_ENV so it's
+  // dead code (stripped entirely) in a production build -- see Login.js's
+  // matching guard around the button that calls this.
+  function devLogin(email) {
+    if (process.env.NODE_ENV === "production") return;
+
+    const tokenPayload = {
+      data: { username: email, role: 1, is_password_changed: 1 },
+    };
+    localStorage.LOGIN_INFO = jwt.encode(tokenPayload, jwtSecret);
+
+    addCookie("dev-local-session", "refresh_token");
+
+    dispatch({ type: "SET_GLOBAL_INFO", payload: tokenPayload.data });
+    dispatch({
+      type: "GET_USER_INFO",
+      payload: {
+        EmployeeNumber: "DEV-LOCAL",
+        FirstName: "Local",
+        LastName: "Tester",
+        CompanyEmail: email,
+        Dept: "IT",
+      },
+    });
+    dispatch({ type: "LOG_STATUS", payload: true });
+
+    window.location.assign("/resources-and-forms");
   }
 
   async function checkUpdateStatus() {
@@ -428,10 +466,10 @@ export const GlobalProvider = ({ children }) => {
             payload: res.data.data,
           });
         }
-
-        loadingStatus(false);
       } catch (error) {
         if (axios.isCancel(error)) return;
+      } finally {
+        loadingStatus(false);
       }
     }
   }
@@ -695,10 +733,10 @@ export const GlobalProvider = ({ children }) => {
 
         unsetP9(false);
       }
-
-      loadingStatus(false);
     } catch (error) {
       if (axios.isCancel(error)) return;
+    } finally {
+      loadingStatus(false);
     }
   }
 
@@ -733,8 +771,6 @@ export const GlobalProvider = ({ children }) => {
       // console.log(res.data.error);
 
       if (res.data) {
-        loadingStatus(false);
-
         dispatch({
           type: "LOAD_PAYSLIP_LIST",
           payload: res.data.file_list,
@@ -744,13 +780,13 @@ export const GlobalProvider = ({ children }) => {
       }
     } catch (error) {
       if (axios.isCancel(error)) return;
+    } finally {
+      loadingStatus(false);
     }
   }
 
   async function getJobVacancies() {
     loadingStatus(!state.isLoading ? true : false);
-
-    const info = tokenInfo();
 
     try {
       const config = {
@@ -937,10 +973,10 @@ export const GlobalProvider = ({ children }) => {
             getLeaveApprovals();
           }
         }
-
-        loadingStatus(false);
       } catch (error) {
         if (axios.isCancel(error)) return;
+      } finally {
+        loadingStatus(false);
       }
     }
   }
@@ -1085,7 +1121,7 @@ export const GlobalProvider = ({ children }) => {
           },
         };
 
-        const res = await axios.post(`${baseURL}/user/update`, inputs, config);
+        await axios.post(`${baseURL}/user/update`, inputs, config);
 
         dispatch({
           type: "SET_UPDATE_PROFILE",
@@ -1385,7 +1421,7 @@ export const GlobalProvider = ({ children }) => {
     // console.log("get approvals");
     const info = tokenInfo();
 
-    if (info.data.role > 0) {
+    if (info && info.data.role > 0) {
       const leave_approvals = Cookies.get("__leave_approvals");
 
       if (leave_approvals) {
@@ -1448,6 +1484,8 @@ export const GlobalProvider = ({ children }) => {
     let appraisal_code = Cookies.get("appraisal_code");
 
     const info = tokenInfo();
+
+    if (!info) return null;
 
     const email = info.data.username;
 
@@ -1750,8 +1788,6 @@ export const GlobalProvider = ({ children }) => {
   }
 
   const getAccessToken = async (inputs) => {
-    const token = Cookies.get("refresh_token");
-
     // try {
     //   const response = await fetch(`${baseURL}/auth/refresh`, {
     //     method: "GET",
@@ -1781,8 +1817,6 @@ export const GlobalProvider = ({ children }) => {
         type: "SET_LOADING",
         payload: null,
       });
-
-      cancel();
     }; // eslint-disable-next-line
   }, []);
 
@@ -1792,6 +1826,7 @@ export const GlobalProvider = ({ children }) => {
         loadingStatus,
         loginStatus,
         handleLogin,
+        devLogin,
         handleLogout,
         setMessage,
         updatePassword,

@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>EHS/MIC Policy Awareness Portal</title>
+<style>
+  :root{
+    --navy:#002060;
+    --navy-light:#1a3a7a;
+    --paper:#ffffff;
+    --bg:#eef0f4;
+    --ink:#1f2430;
+    --muted:#5b6270;
+    --line:#dde1e8;
+    --good:#1e6b3e;
+    --flag:#a11e29;
+    --flag-bg:#fbeaec;
+    --good-bg:#eaf4ee;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);
+    min-height:100vh;
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    padding:32px 16px;
+  }
+  .wrap{width:100%;max-width:680px;}
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:14px;color:var(--navy);}
+  .brand .mark{width:28px;height:28px;border-radius:6px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:none;}
+  .brand .name{font-size:14px;font-weight:600;letter-spacing:.2px;}
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:32px 34px;box-shadow:0 1px 2px rgba(16,24,40,.04);}
+  h1{font-size:21px;margin:0 0 6px;color:var(--navy);font-weight:700;line-height:1.3;}
+  p{line-height:1.55;color:var(--ink);}
+  .sub{color:var(--muted);font-size:14.5px;margin-top:0;}
+  .scope{margin-top:18px;padding:14px 16px;background:var(--bg);border-radius:8px;font-size:14px;color:var(--muted);}
+  label{display:block;font-size:13.5px;color:var(--muted);margin:16px 0 5px;}
+  input[type=text],select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:7px;font-size:15px;font-family:inherit;color:var(--ink);background:#fff;}
+  input[type=text]:focus,select:focus{outline:2px solid var(--navy-light);outline-offset:1px;}
+  .btn{appearance:none;border:none;cursor:pointer;background:var(--navy);color:#fff;font-size:15px;font-weight:600;padding:11px 20px;border-radius:7px;font-family:inherit;}
+  .btn:hover{background:var(--navy-light);}
+  .btn:disabled{background:#a9b0bd;cursor:not-allowed;}
+  .btn.secondary{background:transparent;color:var(--navy);border:1px solid var(--line);}
+  .btn.secondary:hover{background:var(--bg);}
+  .row-btns{display:flex;justify-content:space-between;align-items:center;margin-top:26px;}
+  .progress-label{font-size:13px;color:var(--muted);margin-bottom:8px;letter-spacing:.2px;}
+  .progress-track{height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-bottom:22px;}
+  .progress-fill{height:100%;background:var(--navy);transition:width .3s ease;}
+  .chapter-tag{display:inline-block;font-size:12px;color:var(--navy);background:#e8ecf6;padding:3px 9px;border-radius:20px;margin-bottom:12px;font-weight:600;}
+  .q-text{font-size:17px;font-weight:600;margin:0 0 18px;line-height:1.45;}
+  .opt{display:block;width:100%;text-align:left;padding:12px 14px;margin-bottom:10px;border:1px solid var(--line);background:#fff;border-radius:8px;cursor:pointer;font-size:14.5px;font-family:inherit;color:var(--ink);transition:border-color .15s, background .15s;}
+  .opt:hover{border-color:var(--navy-light);}
+  .opt.selected{border-color:var(--navy);background:#eef1fa;font-weight:600;}
+  .opt.correct{border-color:var(--good);background:var(--good-bg);}
+  .opt.incorrect{border-color:var(--flag);background:var(--flag-bg);}
+  .feedback{margin-top:14px;font-size:13.5px;padding:10px 12px;border-radius:7px;line-height:1.5;}
+  .feedback.good{background:var(--good-bg);color:var(--good);}
+  .feedback.bad{background:var(--flag-bg);color:var(--flag);}
+  .cert{text-align:center;}
+  .cert .stamp{width:64px;height:64px;border-radius:50%;background:var(--good-bg);color:var(--good);display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-size:30px;}
+  .cert.flagged .stamp{background:var(--flag-bg);color:var(--flag);}
+  .cert h1{font-family:Georgia,'Times New Roman',serif;font-size:24px;}
+  .cert .score{font-size:15px;color:var(--muted);margin:6px 0 22px;}
+  .cert .score b{color:var(--ink);}
+  .meta-box{text-align:left;background:var(--bg);border-radius:8px;padding:14px 16px;font-size:13.5px;color:var(--muted);margin-bottom:22px;}
+  .meta-box div{margin-bottom:4px;}
+  .meta-box b{color:var(--ink);}
+  .footer-link{display:block;text-align:center;margin-top:16px;font-size:12.5px;color:var(--muted);text-decoration:underline;cursor:pointer;background:none;border:none;font-family:inherit;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:10px;}
+  th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);}
+  th{color:var(--muted);font-weight:600;font-size:11.5px;}
+  .pill{padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;}
+  .pill.pass{background:var(--good-bg);color:var(--good);}
+  .pill.review{background:var(--flag-bg);color:var(--flag);}
+  .pill.partial{background:#fff4e0;color:#8a5a00;}
+  .filter-row{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .filter-row select{width:auto;padding:7px 10px;font-size:13.5px;}
+  .filter-row span{font-size:12.5px;color:var(--muted);}
+  .empty{color:var(--muted);font-size:13.5px;text-align:center;padding:20px 0;}
+  .err{color:var(--flag);font-size:13px;margin-top:8px;}
+
+  /* Chapter review screen */
+  .chap-list{margin-top:18px;}
+  .chap{border:1px solid var(--line);border-radius:8px;margin-bottom:10px;overflow:hidden;}
+  .chap-head{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;cursor:pointer;background:#fff;}
+  .chap-head:hover{background:var(--bg);}
+  .chap-title{font-size:14.5px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:9px;}
+  .chap-check{width:19px;height:19px;border-radius:50%;border:2px solid var(--line);flex:none;display:flex;align-items:center;justify-content:center;font-size:11px;color:transparent;transition:all .2s;}
+  .chap-check.done{background:var(--good);border-color:var(--good);color:#fff;}
+  .chap-caret{color:var(--muted);font-size:12px;transition:transform .2s;}
+  .chap-caret.open{transform:rotate(180deg);}
+  .chap-body{padding:0 16px 16px;font-size:13.5px;color:var(--ink);line-height:1.6;display:none;border-top:1px solid var(--line);}
+  .chap-body.open{display:block;padding-top:14px;}
+  .chap-timer{font-size:11.5px;color:var(--muted);margin-top:10px;font-style:italic;}
+  .chap-summary{font-size:12px;color:var(--muted);margin-top:2px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><div class="mark">EHS</div><div class="name">MIC Global Risks / Executive Healthcare Solutions</div></div>
+  <div class="card" id="app"></div>
+</div>
+
+<script>
+const CHAPTERS = [
+  {
+    id: "aup",
+    title: "Acceptable Use Policy",
+    summary: "How to use company systems, devices, and removable media",
+    body: `The Acceptable Use Policy governs how staff use EHS/MIC IT systems, devices, and data in the course of their work.
+    <br><br><b>Key points:</b>
+    <ul>
+      <li>Company systems and email are for business use; brief, reasonable personal use is permitted but must not interfere with work or introduce risk.</li>
+      <li>Confidential and highly confidential data must never be stored on personal cloud storage (personal Dropbox, Google Drive, etc.) &mdash; even temporarily or "just as a backup."</li>
+      <li>Removable media (USB drives, external hard drives) may only be used with a valid business reason, and confidential data on them must be encrypted where technically feasible.</li>
+      <li>Use of AI or cloud tools not approved by IT is prohibited for company or client data &mdash; see the AI Governance chapter for the approval process.</li>
+    </ul>`
+  },
+  {
+    id: "ai",
+    title: "AI Acceptable Use and Governance Policy",
+    summary: "Rules for using AI tools with company or client data",
+    body: `This policy governs how staff may use artificial intelligence tools &mdash; including generative AI assistants &mdash; in their work.
+    <br><br><b>Key points:</b>
+    <ul>
+      <li>Only AI tools on the IT Department's approved list may be used with EHS or client data. New tools must be reviewed before use.</li>
+      <li>Confidential, highly confidential, or personal data must never be entered into a public or unapproved AI tool.</li>
+      <li>AI-generated content used in client communications, claims, or underwriting must be reviewed and verified by a qualified staff member before being relied upon or sent &mdash; never sent as-is.</li>
+      <li>Decisions that materially affect a client or claimant must always retain a named human decision-maker, even where AI assists the process.</li>
+    </ul>`
+  },
+  {
+    id: "social",
+    title: "Social Media Policy",
+    summary: "What's appropriate on official and personal social media",
+    body: `This policy covers both official EHS/MIC social media accounts and staff's personal use where it touches company business.
+    <br><br><b>Key points:</b>
+    <ul>
+      <li>Only staff formally authorised by IT or Senior Management may post on official company accounts.</li>
+      <li>On personal accounts, never share client information, claims details, or documents &mdash; including incidentally, such as in the background of a photo taken at the office.</li>
+      <li>Don't present personal opinions as the official position of EHS/MIC.</li>
+      <li>If you administer an official account and suspect it has been compromised, report it to IT immediately &mdash; don't wait or try to fix it yourself.</li>
+    </ul>`
+  },
+  {
+    id: "dlp",
+    title: "Data Loss Prevention Policy",
+    summary: "How confidential data may be sent, stored, and transferred",
+    body: `This policy sets controls to prevent confidential or client data from leaving EHS/MIC systems in unauthorised ways.
+    <br><br><b>Key points:</b>
+    <ul>
+      <li>Confidential and highly confidential data must never be uploaded to personal cloud storage or unapproved file-sharing services.</li>
+      <li>Sending a large confidential dataset to an approved third party still requires an advance exception request with business justification &mdash; approval isn't automatic just because the recipient is approved.</li>
+      <li>Removable media use for confidential data needs a documented business reason and encryption where feasible.</li>
+      <li>Repeated violations are referred to HR, in addition to any IT security response.</li>
+    </ul>`
+  },
+  {
+    id: "physec",
+    title: "Physical Security Policy",
+    summary: "Access control, visitors, and clean-desk practice",
+    body: `This policy covers physical access to EHS/MIC premises and how confidential material is handled in the office.
+    <br><br><b>Key points:</b>
+    <ul>
+      <li>Never hold an access-controlled door open for someone you don't recognise &mdash; direct them to reception to sign in as a visitor, regardless of how they're dressed or how confident they seem.</li>
+      <li>Confidential documents should be cleared away or locked up at the end of the day, not left visible on desks overnight.</li>
+      <li>Visitors must be signed in, badged, and escorted or supervised while on EHS/MIC premises.</li>
+    </ul>`
+  },
+  {
+    id: "email",
+    title: "Email Policy",
+    summary: "Phishing reporting and secure handling of confidential attachments",
+    body: `This policy covers the secure use of company email, including how to handle suspicious messages and confidential attachments.
+    <br><br><b>Key points:</b>
+    <ul>
+      <li>If an email looks like phishing (urgent password reset requests, unexpected links, unfamiliar senders), report it &mdash; don't click the link, reply, or try to verify it yourself.</li>
+      <li>Highly confidential information sent externally must use the required encrypted or secure transfer method, not a plain attachment.</li>
+      <li>Never send login credentials or passwords by email, even internally.</li>
+    </ul>`
+  }
+];
+
+// Questions are no longer hardcoded -- fetchITQuestions() below pulls them
+// live from Business Central for the signed-in employee. state.questions
+// holds whatever came back for the current session.
+
+const ENTITIES = [
+  "MIC Global Risks (Insurance Brokers) Limited",
+  "Executive Healthcare Solutions Limited"
+];
+const ENTITY_CODES = { "MIC": ENTITIES[0], "EHS": ENTITIES[1] };
+
+const PASS_THRESHOLD = 0.75;
+const MIN_VIEW_SECONDS = 8;
+
+const API_BASE = "https://portal.micglobalrisks.com:8082/portal/v1.0/api";
+const IT_POLICY_AWARENESS_SECRET = "EHS_POLICY_AWARENESS_SECRET_2026";
+
+function policyAwarenessHeaders(extra){
+  return Object.assign({ "X-Internal-Token": IT_POLICY_AWARENESS_SECRET }, extra || {});
+}
+
+/* ============================================================================
+   DATA ADAPTER -- THE ONLY SECTION THAT NEEDS TO CHANGE FOR BACKEND INTEGRATION
+   ----------------------------------------------------------------------------
+   Every place this tool reads or writes a completion record calls ONLY the
+   methods below. Nothing else in this file touches the network directly.
+
+   saveRecord posts to it_policy_awareness/submit, which writes the
+   completion record into NAV. listRecords reads it_policy_awareness/log,
+   which pulls the log back out of NAV live (no local caching). Both require
+   the same X-Internal-Token header as the PHP endpoints.
+   ============================================================================ */
+const DataAdapter = {
+  // Submit one answer the instant it's picked, so NAV has it immediately
+  // instead of waiting for the final submission. Best-effort -- a single
+  // dropped answer submission doesn't block the quiz; the final submit
+  // below is what NAV treats as authoritative once every question has come
+  // through.
+  // ASSUMED contract (not yet confirmed against a live submit.php):
+  //   POST it_policy_awareness/submit
+  //   { employeeId, entity, attempt, questionNo, selectedOptionNo, final: false }
+  //   -> { error: false, message: "Success" }
+  async submitAnswer({ employeeId, entity, attempt, questionNo, selectedOptionNo }){
+    try{
+      const res = await fetch(`${API_BASE}/it_policy_awareness/submit`, {
+        method: "POST",
+        headers: policyAwarenessHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ employeeId, entity, attempt, questionNo, selectedOptionNo, final: false })
+      });
+      const json = await res.json();
+      return res.ok && !json.error;
+    }catch(e){
+      return false;
+    }
+  },
+
+  // Final submission once all questions are answered. NAV is expected to
+  // validate that every question has a recorded answer for this
+  // employeeId+attempt, compute the result, and hand it back -- this tool
+  // no longer computes score/passed locally.
+  // ASSUMED contract:
+  //   POST it_policy_awareness/submit
+  //   { employeeId, name, entity, department, attempt, chaptersViewed,
+  //     chaptersTotal, final: true, timestamp }
+  //   -> { error: false, message: "Success",
+  //        data: { chaptersViewed, chaptersTotal, score, total, passed,
+  //                attempt, overallComplete } }
+  async finalizeRecord(record){
+    const res = await fetch(`${API_BASE}/it_policy_awareness/submit`, {
+      method: "POST",
+      headers: policyAwarenessHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(Object.assign({ final: true }, record))
+    });
+    const json = await res.json();
+    if(!res.ok || json.error) throw new Error(json.message || "Could not submit your completion to NAV");
+    return json.data;
+  },
+
+  // Return an array of all saved record objects (unfiltered -- filtering
+  // by entity happens client-side in renderLog).
+  async listRecords(){
+    const res = await fetch(`${API_BASE}/it_policy_awareness/log`, {
+      method: "GET",
+      headers: policyAwarenessHeaders()
+    });
+    const json = await res.json();
+    if(!res.ok || json.error) throw new Error(json.message || "Could not load completion log");
+    return json.data || [];
+  }
+};
+/* ======================== END DATA ADAPTER SECTION ======================== */
+
+// ─── Identity + questions, both pulled from the live portal APIs ───────────
+// ASSUMED endpoint (not yet confirmed live -- see chat): GET
+//   it_policy_awareness/questions?employeeId=<EmployeeNumber>
+// -> { error: false, message: "Success",
+//      employee: { name, employeeId, entity, department },   // optional
+//      data: [ { questionNo, chapter, question, responseType, note,
+//                options: [ { optionNo, option, correct: "Yes"|"No" } ] } ] }
+// The "employee" block is what fills the intro screen automatically; if the
+// real endpoint doesn't send it (or names the fields differently), the
+// manual-entry form on the intro screen still works as a fallback.
+async function fetchITQuestions(employeeId){
+  const res = await fetch(`${API_BASE}/it_policy_awareness/questions?employeeId=${encodeURIComponent(employeeId)}`, {
+    method: "GET",
+    headers: policyAwarenessHeaders()
+  });
+  const json = await res.json();
+  if(!res.ok || json.error) throw new Error(json.message || "Could not load the knowledge check questions");
+
+  const questions = (json.data || []).map(q => ({
+    questionNo: q.questionNo,
+    chapter: q.chapter,
+    q: q.question,
+    note: q.note,
+    opts: (q.options || []).map(o => o.option),
+    optionNos: (q.options || []).map(o => o.optionNo),
+    correct: (q.options || []).findIndex(o => String(o.correct).toLowerCase() === "yes")
+  }));
+
+  return { questions, employee: json.employee || null };
+}
+
+// Existing portal endpoint (same one GlobalState.js's getUserDetails() uses)
+// -- we only need EmployeeNumber off of it. Forwards the same bearer value
+// the rest of the portal already stores in localStorage.LOGIN_INFO, since
+// this static page shares localStorage with the React app (same origin).
+async function fetchEmployeeNumber(username){
+  const res = await fetch(`${API_BASE}/user/info?username=${encodeURIComponent(username)}`, {
+    method: "GET",
+    headers: { Authorization: localStorage.getItem("LOGIN_INFO") || "" }
+  });
+  const json = await res.json();
+  if(!res.ok || json.error || !json.data) throw new Error(json.message || "Could not resolve employee number");
+  return json.data.EmployeeNumber;
+}
+
+function getUrlParams(){
+  const p = new URLSearchParams(window.location.search);
+  const rawEntity = p.get("entity") || "";
+  const entity = ENTITY_CODES[rawEntity.toUpperCase()] || (ENTITIES.includes(rawEntity) ? rawEntity : "");
+  return {
+    username: p.get("username") || "",
+    name: p.get("name") || "",
+    employeeId: p.get("id") || "",
+    department: p.get("dept") || "",
+    entity
+  };
+}
+
+let state = {
+  screen: "loading",
+  name: "", employeeId: "", department: "", entity: "",
+  questions: [],
+  chapterStatus: {},     // id -> {opened, viewed, openedAt}
+  openChapterId: null,
+  qIndex: 0, answers: [], pendingSubmissions: [], showFeedback: false,
+  attemptCount: 0,
+  logFilter: ""
+};
+CHAPTERS.forEach(c => state.chapterStatus[c.id] = { viewed: false, timer: null });
+
+const app = document.getElementById("app");
+function render(){
+  if(state.screen === "loading") return renderLoading();
+  if(state.screen === "intro") return renderIntro();
+  if(state.screen === "chapters") return renderChapters();
+  if(state.screen === "quiz") return renderQuiz();
+  if(state.screen === "result") return renderResult();
+  if(state.screen === "log") return renderLog();
+}
+
+function renderLoading(){
+  app.innerHTML = `
+    <span class="chapter-tag">Policy Awareness Portal</span>
+    <h1>IT Security Policy — Staff Awareness</h1>
+    <p class="sub">Loading your details…</p>
+  `;
+}
+
+// Resolves who's signed in (via ?username=, passed in by the portal's
+// Resources link) and fetches this attempt's questions up front. Falls
+// back to the manual-entry intro form -- with questions fetched once the
+// employee ID is typed in -- if identity can't be resolved automatically.
+async function boot(){
+  const params = getUrlParams();
+  state.name = params.name;
+  state.employeeId = params.employeeId;
+  state.department = params.department;
+  state.entity = params.entity;
+
+  try{
+    if(!state.employeeId && params.username){
+      state.employeeId = await fetchEmployeeNumber(params.username);
+    }
+
+    if(state.employeeId){
+      const { questions, employee } = await fetchITQuestions(state.employeeId);
+      state.questions = questions;
+      if(employee){
+        state.name = employee.name || state.name;
+        state.employeeId = employee.employeeId || state.employeeId;
+        state.entity = employee.entity || state.entity;
+        state.department = employee.department || state.department;
+      }
+    }
+  }catch(e){
+    // Auto-prefill/auto-fetch failed (e.g. NAV unreachable) -- fall through
+    // to the intro screen. If identity is still incomplete it shows the
+    // manual-entry form; if questions didn't load, "Begin" retries the
+    // fetch and surfaces the error there instead.
+  }
+
+  state.screen = "intro";
+  render();
+}
+
+function renderIntro(){
+  const prefilled = !!(state.name && state.employeeId && state.entity);
+  const entityOptions = ENTITIES.map(e => `<option value="${escapeHtml(e)}" ${state.entity===e?"selected":""}>${escapeHtml(e)}</option>`).join("");
+  app.innerHTML = `
+    <span class="chapter-tag">Policy Awareness Portal</span>
+    <h1>IT Security Policy — Staff Awareness</h1>
+    <p class="sub">Two steps: review the six policy chapters that directly affect your day-to-day work, then complete a short knowledge check. Takes about 8 minutes in total.</p>
+    <div class="scope"><strong>Covers:</strong> Acceptable Use &middot; AI Governance &middot; Social Media &middot; Data Loss Prevention &middot; Physical Security &middot; Email</div>
+    ${prefilled ? `
+      <div class="meta-box" style="margin-top:18px;">
+        <div><b>Name:</b> ${escapeHtml(state.name)}</div>
+        <div><b>Employee ID:</b> ${escapeHtml(state.employeeId)}</div>
+        <div><b>Entity:</b> ${escapeHtml(state.entity)}</div>
+        ${state.department ? `<div><b>Department:</b> ${escapeHtml(state.department)}</div>` : ""}
+      </div>` : `
+      <label for="f-name">Full name</label>
+      <input type="text" id="f-name" placeholder="e.g. Jane Wanjiru" value="${escapeHtml(state.name)}"/>
+      <label for="f-id">Employee ID</label>
+      <input type="text" id="f-id" placeholder="e.g. EHS-0142" value="${escapeHtml(state.employeeId)}"/>
+      <label for="f-entity">Entity</label>
+      <select id="f-entity">
+        <option value="">Select your entity…</option>
+        ${entityOptions}
+      </select>
+      <label for="f-dept">Department</label>
+      <input type="text" id="f-dept" placeholder="e.g. Claims, Underwriting, IT" value="${escapeHtml(state.department)}"/>
+    `}
+    <div id="intro-err" class="err" style="display:none;"></div>
+    <div class="row-btns">
+      <span></span>
+      <button class="btn" id="start-btn">Begin</button>
+    </div>
+    <button class="footer-link" id="log-link">View completion log</button>
+  `;
+  document.getElementById("start-btn").onclick = async () => {
+    if(!prefilled){
+      const name = document.getElementById("f-name").value.trim();
+      const id = document.getElementById("f-id").value.trim();
+      const entity = document.getElementById("f-entity").value;
+      const dept = document.getElementById("f-dept").value.trim();
+      if(!name || !id || !entity || !dept){
+        const err = document.getElementById("intro-err");
+        err.textContent = "Please fill in all fields, including your entity, to continue.";
+        err.style.display = "block";
+        return;
+      }
+      state.name = name; state.employeeId = id; state.entity = entity; state.department = dept;
+    }
+    if(state.questions.length === 0){
+      const startBtn = document.getElementById("start-btn");
+      startBtn.disabled = true;
+      startBtn.textContent = "Loading questions…";
+      try{
+        const { questions, employee } = await fetchITQuestions(state.employeeId);
+        state.questions = questions;
+        if(employee){
+          state.name = employee.name || state.name;
+          state.entity = employee.entity || state.entity;
+          state.department = employee.department || state.department;
+        }
+      }catch(e){
+        startBtn.disabled = false;
+        startBtn.textContent = "Begin";
+        const err = document.getElementById("intro-err");
+        err.textContent = friendlyError(e, "Could not load the knowledge check questions. Please try again.");
+        err.style.display = "block";
+        return;
+      }
+    }
+    state.screen = "chapters";
+    render();
+  };
+  document.getElementById("log-link").onclick = () => { state.screen = "log"; render(); };
+}
+
+function allChaptersViewed(){
+  return CHAPTERS.every(c => state.chapterStatus[c.id].viewed);
+}
+
+function renderChapters(){
+  const viewedCount = CHAPTERS.filter(c => state.chapterStatus[c.id].viewed).length;
+  app.innerHTML = `
+    <div class="progress-label">Step 1 of 2 &mdash; Chapters reviewed: ${viewedCount} of ${CHAPTERS.length}</div>
+    <div class="progress-track"><div class="progress-fill" style="width:${(viewedCount/CHAPTERS.length)*100}%"></div></div>
+    <h1>Review Each Chapter</h1>
+    <p class="sub">Open each section below and read it. It unlocks automatically after a few seconds so you have time to actually read it.</p>
+    <div class="chap-list" id="chap-list"></div>
+    <div class="row-btns">
+      <span></span>
+      <button class="btn" id="continue-btn" ${allChaptersViewed() ? "" : "disabled"}>Continue to knowledge check</button>
+    </div>
+  `;
+  const list = document.getElementById("chap-list");
+  CHAPTERS.forEach(c => {
+    const st = state.chapterStatus[c.id];
+    const isOpen = state.openChapterId === c.id;
+    const div = document.createElement("div");
+    div.className = "chap";
+    div.innerHTML = `
+      <div class="chap-head">
+        <div class="chap-title">
+          <span class="chap-check ${st.viewed ? "done" : ""}">${st.viewed ? "&#10003;" : ""}</span>
+          <div>${c.title}<div class="chap-summary">${c.summary}</div></div>
+        </div>
+        <span class="chap-caret ${isOpen ? "open" : ""}">&#9660;</span>
+      </div>
+      <div class="chap-body ${isOpen ? "open" : ""}">
+        ${c.body}
+        <div class="chap-timer" id="timer-${c.id}">${st.viewed ? "Marked as reviewed." : "Keep this open for a few seconds to mark it as reviewed…"}</div>
+      </div>
+    `;
+    div.querySelector(".chap-head").onclick = () => {
+      if(state.openChapterId === c.id){
+        state.openChapterId = null;
+      } else {
+        state.openChapterId = c.id;
+        if(!st.viewed && !st.timer){
+          st.timer = setTimeout(() => {
+            st.viewed = true;
+            st.timer = null;
+            if(state.openChapterId === c.id) render();
+          }, MIN_VIEW_SECONDS * 1000);
+        }
+      }
+      render();
+    };
+    list.appendChild(div);
+  });
+  const cb = document.getElementById("continue-btn");
+  if(cb) cb.onclick = () => {
+    if(!allChaptersViewed()) return;
+    state.screen = "quiz"; state.qIndex = 0; state.answers = []; state.pendingSubmissions = []; state.showFeedback = false;
+    render();
+  };
+}
+
+function renderQuiz(){
+  const questions = state.questions;
+  const q = questions[state.qIndex];
+  const pct = Math.round((state.qIndex / questions.length) * 100);
+  app.innerHTML = `
+    <div class="progress-label">Step 2 of 2 &mdash; Question ${state.qIndex + 1} of ${questions.length}</div>
+    <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+    <span class="chapter-tag">${q.chapter}</span>
+    <p class="q-text">${q.q}</p>
+    <div id="opts"></div>
+    <div id="fb"></div>
+    <div class="row-btns">
+      <span></span>
+      <button class="btn" id="next-btn" disabled>${state.qIndex === questions.length - 1 ? "See results" : "Next"}</button>
+    </div>
+  `;
+  const optsEl = document.getElementById("opts");
+  q.opts.forEach((opt, i) => {
+    const b = document.createElement("button");
+    b.className = "opt";
+    b.textContent = opt;
+    b.onclick = () => {
+      if(state.showFeedback) return;
+      state.showFeedback = true;
+      const isCorrect = i === q.correct;
+      [...optsEl.children].forEach((el, j) => {
+        el.classList.remove("selected");
+        if(j === q.correct) el.classList.add("correct");
+        else if(j === i && !isCorrect) el.classList.add("incorrect");
+      });
+      document.getElementById("fb").innerHTML = `<div class="feedback ${isCorrect ? "good" : "bad"}">${isCorrect ? "Correct. " : "Not quite. "}${q.note}</div>`;
+      document.getElementById("next-btn").disabled = false;
+      state.answers[state.qIndex] = isCorrect;
+
+      // Fire the answer off to NAV immediately rather than waiting for the
+      // final submit -- don't block the Next button on it, but track the
+      // promise so finishQuiz() can make sure they've all landed first.
+      state.pendingSubmissions.push(DataAdapter.submitAnswer({
+        employeeId: state.employeeId,
+        entity: state.entity,
+        attempt: state.attemptCount + 1,
+        questionNo: q.questionNo,
+        selectedOptionNo: q.optionNos[i]
+      }));
+    };
+    optsEl.appendChild(b);
+  });
+  document.getElementById("next-btn").onclick = () => {
+    if(state.qIndex < questions.length - 1){
+      state.qIndex += 1; state.showFeedback = false;
+      render();
+    } else {
+      finishQuiz();
+    }
+  };
+}
+
+async function finishQuiz(){
+  // Locally-computed fallback, used only if NAV's final response doesn't
+  // come back -- so the user still sees a result instead of a dead end.
+  const localScore = state.answers.filter(Boolean).length;
+  const localTotal = state.questions.length;
+  state.attemptCount += 1;
+
+  const record = {
+    name: state.name, employeeId: state.employeeId, department: state.department, entity: state.entity,
+    chaptersViewed: CHAPTERS.length, chaptersTotal: CHAPTERS.length,
+    attempt: state.attemptCount,
+    timestamp: new Date().toISOString()
+  };
+
+  state.saveError = null;
+  try{
+    await Promise.allSettled(state.pendingSubmissions);
+    const result = await DataAdapter.finalizeRecord(record);
+    state.lastRecord = Object.assign({}, record, {
+      chaptersViewed: result.chaptersViewed ?? record.chaptersViewed,
+      chaptersTotal: result.chaptersTotal ?? record.chaptersTotal,
+      score: result.score,
+      total: result.total,
+      passed: result.passed,
+      attempt: result.attempt ?? record.attempt,
+      overallComplete: result.overallComplete
+    });
+  }catch(e){
+    state.saveError = "Could not submit your completion to NAV. Please notify IT -- your local result is shown below.";
+    const passed = (localScore / localTotal) >= PASS_THRESHOLD;
+    state.lastRecord = Object.assign({}, record, {
+      score: localScore, total: localTotal, passed, overallComplete: passed
+    });
+  }
+
+  state.screen = "result";
+  render();
+}
+
+function renderResult(){
+  const r = state.lastRecord;
+  const pct = Math.round((r.score / r.total) * 100);
+  app.innerHTML = `
+    <div class="cert ${r.passed ? "" : "flagged"}">
+      <div class="stamp">${r.passed ? "&#10003;" : "!"}</div>
+      <h1>${r.passed ? "Awareness confirmed" : "Not yet complete"}</h1>
+      <div class="score">Chapters reviewed: <b>${r.chaptersViewed}/${r.chaptersTotal}</b> &middot; Quiz: <b>${r.score}/${r.total}</b> (${pct}%)${r.attempt > 1 ? ` — attempt ${r.attempt}` : ""}</div>
+      <div class="meta-box">
+        <div><b>Name:</b> ${escapeHtml(r.name)}</div>
+        <div><b>Employee ID:</b> ${escapeHtml(r.employeeId)}</div>
+        <div><b>Entity:</b> ${escapeHtml(r.entity || "—")}</div>
+        <div><b>Department:</b> ${escapeHtml(r.department)}</div>
+        <div><b>Date:</b> ${new Date(r.timestamp).toLocaleString()}</div>
+      </div>
+      <p style="text-align:left;font-size:14px;color:var(--muted);">
+        ${r.passed
+          ? "This confirms you've reviewed all six policy chapters and passed the knowledge check. Your completion has been logged."
+          : "A pass score of 75% is required for this to count as complete. Your chapter reviews are saved — you only need to retake the knowledge check."}
+      </p>
+      ${state.saveError ? `<div class="err">${state.saveError}</div>` : ""}
+      <div class="row-btns" style="justify-content:center;gap:12px;">
+        ${r.passed
+          ? `<button class="btn secondary" id="retake-btn">Retake anyway</button><button class="btn" id="log-btn">View completion log</button>`
+          : `<button class="btn" id="retake-btn">Retake quiz now</button>`}
+      </div>
+    </div>
+  `;
+  document.getElementById("retake-btn").onclick = () => {
+    state.screen = "quiz"; state.qIndex = 0; state.answers = []; state.pendingSubmissions = []; state.showFeedback = false;
+    render();
+  };
+  const logBtn = document.getElementById("log-btn");
+  if(logBtn) logBtn.onclick = () => { state.screen = "log"; render(); };
+}
+
+async function renderLog(){
+  app.innerHTML = `
+    <span class="chapter-tag">Compliance record</span>
+    <h1>Completion Log</h1>
+    <p class="sub">All recorded chapter-review and knowledge-check completions.</p>
+    <div class="filter-row">
+      <span>Filter by entity:</span>
+      <select id="entity-filter">
+        <option value="">All entities</option>
+        ${ENTITIES.map(e => `<option value="${escapeHtml(e)}" ${state.logFilter===e?"selected":""}>${escapeHtml(e)}</option>`).join("")}
+      </select>
+    </div>
+    <div id="log-body" class="empty">Loading...</div>
+    <div class="row-btns"><button class="btn secondary" id="back-btn">Back</button><span></span></div>
+  `;
+  document.getElementById("back-btn").onclick = () => { state.screen = "intro"; render(); };
+  document.getElementById("entity-filter").onchange = (e) => { state.logFilter = e.target.value; render(); };
+  try{
+    let records = await DataAdapter.listRecords();
+    records.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+    if(records.length === 0){ document.getElementById("log-body").textContent = "No completions recorded yet."; return; }
+    if(state.logFilter){ records = records.filter(r => r.entity === state.logFilter); }
+    if(records.length === 0){ document.getElementById("log-body").textContent = "No completions recorded for this filter yet."; return; }
+    const rows = records.map(r => `
+      <tr>
+        <td>${escapeHtml(r.name)}</td>
+        <td>${escapeHtml(r.employeeId)}</td>
+        <td>${escapeHtml(r.entity ? (r.entity.startsWith("MIC") ? "MIC" : "EHS") : "—")}</td>
+        <td>${escapeHtml(r.department)}</td>
+        <td>${r.chaptersViewed}/${r.chaptersTotal}</td>
+        <td>${r.score}/${r.total}</td>
+        <td><span class="pill ${r.passed ? "pass" : "review"}">${r.passed ? "Complete" : "Retake required"}</span></td>
+        <td>${new Date(r.timestamp).toLocaleDateString()}</td>
+      </tr>
+    `).join("");
+    document.getElementById("log-body").outerHTML = `
+      <table><thead><tr><th>Name</th><th>ID</th><th>Entity</th><th>Dept</th><th>Chapters</th><th>Quiz</th><th>Status</th><th>Date</th></tr></thead>
+      <tbody>${rows}</tbody></table>`;
+  }catch(e){
+    document.getElementById("log-body").textContent = "Could not load the completion log right now.";
+  }
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+// A raw TypeError ("Failed to fetch") means the request never reached the
+// server (network down, CORS, DNS) -- not useful to show verbatim. Errors
+// we threw ourselves (from a parsed API response) carry a real message.
+function friendlyError(e, fallback){
+  return (e instanceof TypeError) ? fallback : (e.message || fallback);
+}
+
+render();
+boot();
+</script>
+</body>
+</html>

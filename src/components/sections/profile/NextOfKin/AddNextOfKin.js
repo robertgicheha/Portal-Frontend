@@ -1,8 +1,7 @@
-import React, { useState, useContext } from "react";
+import React, { useContext } from "react";
 import { useForm } from "react-hook-form";
 import { EditOutlined } from "@ant-design/icons";
 import { GlobalContext } from "../../../../context/GlobalState";
-import moment from "moment";
 
 const AddNextOfKin = ({ setKin, isUpdatingProfile, update_code }) => {
   const relations = [
@@ -21,7 +20,7 @@ const AddNextOfKin = ({ setKin, isUpdatingProfile, update_code }) => {
 
   const { addNextOfKin } = useContext(GlobalContext);
 
-  const { register, handleSubmit, errors, reset, control } = useForm();
+  const { register, handleSubmit, errors } = useForm();
 
   const onSubmit = (data) => {
     data.docNo = update_code;

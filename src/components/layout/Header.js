@@ -1,13 +1,5 @@
 import React, { useRef, useEffect, useState, useContext } from "react";
-import {
-  Bell,
-  MessageSquare,
-  Inbox,
-  User,
-  LogOut,
-  Users,
-  HelpCircle,
-} from "react-feather";
+import { Inbox, User, LogOut, Users, HelpCircle } from "react-feather";
 import { Link } from "react-router-dom";
 import { GlobalContext } from "../../context/GlobalState";
 import logo from "../../images/logos/logo.png";
@@ -84,18 +76,6 @@ const Header = () => {
       setprofile(false);
       return;
     }
-  };
-
-  const profileLowerCase = (value) => {
-    return value.toLowerCase();
-  };
-
-  const userProfile = () => {
-    const img_url =
-      process.env.PUBLIC_URL +
-      `documents/${user_info.EmployeeNumber}/profile/miccex125.png`;
-
-    return img_url;
   };
 
   const showDefault = (e) => {

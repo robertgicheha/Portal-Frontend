@@ -17,7 +17,7 @@ const Update = ({
     (itemInArray) => itemInArray.LineNo === editing
   );
 
-  const [startYear, setStartYear] = useState(1900);
+  const [, setStartYear] = useState(1900);
 
   const { register, handleSubmit, errors, reset } = useForm();
 

@@ -3,15 +3,13 @@ import BreadCrumb from "../BreadCrumb";
 import { useForm } from "react-hook-form";
 import { GlobalContext } from "../../../context/GlobalState";
 import Menu from "../../layout/Menu";
-import Loader from "react-loader-spinner";
-import { Edit, Plus, ExternalLink, Trash2, Check, X, Eye } from "react-feather";
-import { Link, Redirect } from "react-router-dom";
+import { Edit, Trash2, Check, X, Eye } from "react-feather";
+import { Redirect } from "react-router-dom";
 import Header from "../../layout/Header";
 import Guidelines from "../../reusables/Guidlines";
 
 const ManageDevelopment = () => {
-  const { globals, getTeamDevelopments, team_developments } =
-    useContext(GlobalContext);
+  const { globals } = useContext(GlobalContext);
 
   const { register, handleSubmit, errors, reset } = useForm();
 
@@ -157,7 +155,7 @@ const ManageDevelopment = () => {
     // eslint-disable-next-line
   }, [message]);
 
-  const { loading, development_view, developments, development } = state;
+  const { development_view, developments, development } = state;
 
   if (globals.role === 1) {
     return (

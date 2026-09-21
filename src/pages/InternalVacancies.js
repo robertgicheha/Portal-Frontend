@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect } from "react";
+import React, { useContext, useEffect } from "react";
 import Menu from "../components/layout/Menu";
 import BreadCrumb from "../components/sections/BreadCrumb";
 import { GlobalContext } from "../context/GlobalState";
@@ -10,11 +10,6 @@ import Moment from "react-moment";
 import { swapSlashes } from "../utils/helpers";
 
 const InternalVacancies = () => {
-  const [state, setstate] = useState({
-    query: "",
-    results: [],
-  });
-
   const { isLoading, vacancies, getJobVacancies } = useContext(GlobalContext);
 
   const menu = {
@@ -27,24 +22,23 @@ const InternalVacancies = () => {
     getJobVacancies();
 
     window.scrollTo({ top: 0, behavior: "smooth" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const handleSearch = () => {
-    //will handle the search
-  };
 
   return (
     <>
+      {/* Header renders unconditionally: it's what triggers the data
+          fetches that flip isLoading, so gating it on isLoading itself
+          creates a mount -> fetch -> hide -> resolve -> remount loop
+          whenever that fetch keeps failing. */}
+      <Header />
       {isLoading && (
-        <>
-          <div className="load_screen">
-            <LoaderScreen text="Loading vacancies. Please wait ..." />
-          </div>
-        </>
+        <div className="load_screen">
+          <LoaderScreen text="Loading vacancies. Please wait ..." />
+        </div>
       )}
       {!isLoading && (
         <>
-          <Header />
           <div className="page">
             <div className="container staff">
               <Menu menu={menu} />

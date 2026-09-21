@@ -8,7 +8,7 @@ import BreadCrumb from "../../sections/BreadCrumb";
 import Overview from "./Overview";
 
 const PendingTickets = (props) => {
-  const { message, isLoading } = useContext(GlobalContext);
+  const { isLoading } = useContext(GlobalContext);
 
   useEffect(() => {
     // eslint-disable-next-line
@@ -23,14 +23,6 @@ const PendingTickets = (props) => {
       // { url: "/leave/requests", text: "Requests", access: 1 },
     ],
   };
-
-  const it_department = [
-    { name: "Allan Kahama", title: "IT Projects & Operations Manager" },
-    { name: "John Muli", title: "I.T. Officer" },
-    { name: "James Malelu", title: "Software Developer" },
-    { name: "Nelson Omoro", title: "Web Developer" },
-    { name: "Desmond Okubasu", title: "Creative Coordinator" },
-  ];
 
   const records = [{}, {}, {}, {}, {}, {}, {}, {}];
 

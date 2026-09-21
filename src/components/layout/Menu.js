@@ -1,17 +1,11 @@
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect } from "react";
 // import LogOut from "../../pages/auth/Logout";
-import { Link } from "react-router-dom";
 // import Hamberger from "./Hamberger";
-import { GlobalContext } from "../../context/GlobalState";
 
 const Menu = ({ menu }) => {
   const [state, setState] = useState({
     menu_open: false,
   });
-
-  const { globals } = useContext(GlobalContext);
-
-  const path = window.location.pathname;
 
   useEffect(() => {
     setState({
@@ -19,19 +13,6 @@ const Menu = ({ menu }) => {
       menu_open: false,
     }); // eslint-disable-next-line
   }, []);
-
-  const toggleMenu = () => {
-    setState({
-      ...state,
-      menu_open: !state.menu_open,
-    });
-  };
-
-  const normalLinks = menu.links.filter(
-    (item) => item.access === 2 || item.access === 0
-  );
-
-  const adminLinks = menu.links.filter((item) => item.access === 1);
 
   return (
     <>
