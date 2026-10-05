@@ -197,12 +197,31 @@ const ENTITY_CODES = { "MIC": ENTITIES[0], "EHS": ENTITIES[1] };
 
 const PASS_THRESHOLD = 0.75;
 const MIN_VIEW_SECONDS = 8;
+// Matches the live middleware's PolicyAwareness::DEFAULT_TRAINING_CODE and
+// the integration requirements doc's own example (spec §9).
+const TRAINING_CODE = "EHS/MIC-SECURITY-2026";
 
 const API_BASE = "https://portal.micglobalrisks.com:8082/portal/v1.0/api";
-const IT_POLICY_AWARENESS_SECRET = "EHS_POLICY_AWARENESS_SECRET_2026";
 
+// The confirmed live PHP middleware (api/it_policy_awareness/*.php) guards
+// this module with a static shared secret rather than the portal's normal
+// session bearer -- its own comments acknowledge this is a known gap versus
+// the integration doc's ideal ("employee identity from an authenticated
+// token"), not something fixable from the frontend alone. Kept here as-is
+// so the quiz actually authenticates against the real backend; it does NOT
+// meet the doc's Section 15 bar (a secret embedded in JS is inherently
+// readable by anyone, as this very repo's own recovery history shows) and
+// should be revisited once the middleware supports real session auth.
+const IT_POLICY_AWARENESS_SECRET = "EHS_POLICY_AWARENESS_SECRET_2026";
 function policyAwarenessHeaders(extra){
   return Object.assign({ "X-Internal-Token": IT_POLICY_AWARENESS_SECRET }, extra || {});
+}
+
+// Existing portal endpoint (same one GlobalState.js's getUserDetails() uses)
+// -- authenticated with the portal's real session bearer, unrelated to the
+// it_policy_awareness module's shared-secret guard above.
+function portalAuthHeaders(extra){
+  return Object.assign({ Authorization: localStorage.getItem("LOGIN_INFO") || "" }, extra || {});
 }
 
 /* ============================================================================
@@ -211,97 +230,131 @@ function policyAwarenessHeaders(extra){
    Every place this tool reads or writes a completion record calls ONLY the
    methods below. Nothing else in this file touches the network directly.
 
-   saveRecord posts to it_policy_awareness/submit, which writes the
-   completion record into NAV. listRecords reads it_policy_awareness/log,
-   which pulls the log back out of NAV live (no local caching). Both require
-   the same X-Internal-Token header as the PHP endpoints.
+   Endpoints and payload shapes here match the live api/it_policy_awareness/
+   *.php middleware (PolicyAwareness model), which implements the EHS/MIC
+   Training Questionnaire integration requirements doc's NAV operations
+   (GetTrainingQuestions / StartTrainingAttempt / SubmitTrainingAnswer /
+   CompleteTrainingAttempt / GetTrainingCompletion) under flat, non-RESTful
+   routes -- entity is required on every call so the middleware can route to
+   the right NAV company (MIC vs EHS), and attemptNo travels in the request
+   body rather than the URL.
    ============================================================================ */
 const DataAdapter = {
-  // Submit one answer the instant it's picked, so NAV has it immediately
+  // POST /api/it_policy_awareness/start-attempt.php
+  // Starts a new attempt for this employee + entity + training code and
+  // returns the authoritative attemptNo used by every subsequent call.
+  async startAttempt({ employeeId, entity, trainingCode = TRAINING_CODE }){
+    const res = await fetch(`${API_BASE}/it_policy_awareness/start-attempt.php`, {
+      method: "POST",
+      headers: policyAwarenessHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ employeeId, entity, trainingCode })
+    });
+    const json = await res.json();
+    if(!res.ok || json.status !== "success") throw new Error(json.message || "Could not start the knowledge check");
+    return json; // { status, attemptNo, employeeNo, dateStarted }
+  },
+
+  // POST /api/it_policy_awareness/submit-answer.php
+  // Submitted the instant an option is picked, so NAV has it immediately
   // instead of waiting for the final submission. Best-effort -- a single
-  // dropped answer submission doesn't block the quiz; the final submit
-  // below is what NAV treats as authoritative once every question has come
-  // through.
-  // ASSUMED contract (not yet confirmed against a live submit.php):
-  //   POST it_policy_awareness/submit
-  //   { employeeId, entity, attempt, questionNo, selectedOptionNo, final: false }
-  //   -> { error: false, message: "Success" }
-  async submitAnswer({ employeeId, entity, attempt, questionNo, selectedOptionNo }){
+  // dropped submission doesn't block the quiz, but /complete-attempt below
+  // will fail server-side (ATTEMPT_COMPLETED / a missing answer) if it
+  // never landed.
+  // NOTE: the live submitTrainingAnswer() only ever returns
+  // { questionNo, recorded } -- no isCorrect field, matching spec §10's
+  // "does not need to be returned at this stage" read literally. The
+  // isCorrect handling below is kept so the UI upgrades automatically if
+  // that ever changes, but today it always falls through to the generic
+  // "answer recorded" message rather than a correct/incorrect one.
+  async submitAnswer({ attemptNo, entity, questionNo, selectedOptionNo }){
     try{
-      const res = await fetch(`${API_BASE}/it_policy_awareness/submit`, {
+      const res = await fetch(`${API_BASE}/it_policy_awareness/submit-answer.php`, {
         method: "POST",
         headers: policyAwarenessHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ employeeId, entity, attempt, questionNo, selectedOptionNo, final: false })
+        body: JSON.stringify({ attemptNo, entity, questionNo, selectedOptionNo })
       });
       const json = await res.json();
-      return res.ok && !json.error;
+      return { ok: res.ok && json.status === "success", isCorrect: json.isCorrect };
     }catch(e){
-      return false;
+      return { ok: false, isCorrect: undefined };
     }
   },
 
-  // Final submission once all questions are answered. NAV is expected to
-  // validate that every question has a recorded answer for this
-  // employeeId+attempt, compute the result, and hand it back -- this tool
-  // no longer computes score/passed locally.
-  // ASSUMED contract:
-  //   POST it_policy_awareness/submit
-  //   { employeeId, name, entity, department, attempt, chaptersViewed,
-  //     chaptersTotal, final: true, timestamp }
-  //   -> { error: false, message: "Success",
-  //        data: { chaptersViewed, chaptersTotal, score, total, passed,
-  //                attempt, overallComplete } }
-  async finalizeRecord(record){
-    const res = await fetch(`${API_BASE}/it_policy_awareness/submit`, {
+  // POST /api/it_policy_awareness/complete-attempt.php
+  // NAV retrieves all answers for the attempt, calculates the score against
+  // the configurable pass mark, and records completion -- correctness is
+  // never computed client-side.
+  async completeAttempt({ attemptNo, entity }){
+    const res = await fetch(`${API_BASE}/it_policy_awareness/complete-attempt.php`, {
       method: "POST",
       headers: policyAwarenessHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify(Object.assign({ final: true }, record))
+      body: JSON.stringify({ attemptNo, entity })
     });
     const json = await res.json();
-    if(!res.ok || json.error) throw new Error(json.message || "Could not submit your completion to NAV");
-    return json.data;
+    if(!res.ok || json.status !== "success") throw new Error(json.message || "Could not submit your completion to NAV");
+    return json; // { status, attemptNo, totalQuestions, correctAnswers, score, passed, completed, completedDate }
   },
 
-  // Return an array of all saved record objects (unfiltered -- filtering
-  // by entity happens client-side in renderLog).
-  async listRecords(){
-    const res = await fetch(`${API_BASE}/it_policy_awareness/log`, {
+  // GET /api/it_policy_awareness/completion.php
+  // The current employee's own completion status. The live endpoint takes
+  // employeeId + entity as query params (no session-derived identity yet).
+  async getCompletion({ employeeId, entity, trainingCode = TRAINING_CODE }){
+    const params = new URLSearchParams({ employeeId, entity, trainingCode });
+    const res = await fetch(`${API_BASE}/it_policy_awareness/completion.php?${params.toString()}`, {
       method: "GET",
       headers: policyAwarenessHeaders()
     });
     const json = await res.json();
-    if(!res.ok || json.error) throw new Error(json.message || "Could not load completion log");
-    return json.data || [];
+    if(!res.ok || json.status !== "success") throw new Error(json.message || "Could not load your completion status");
+    return json;
+  },
+
+  // Org-wide "everyone's completion" reporting is explicitly called out in
+  // the live completion.php as NOT part of this integration -- it needs its
+  // own NAV operation that doesn't exist yet (spec §22 "Reporting and
+  // dashboards" future work). There is no endpoint to call here today, so
+  // this intentionally always rejects; the UI hides its entry points below
+  // (COMPLETION_LOG_AVAILABLE) rather than offering a feature that can't work.
+  async listRecords(){
+    throw new Error("The completion log isn't available yet -- it needs a dedicated NAV reporting operation that hasn't been built.");
   }
 };
 /* ======================== END DATA ADAPTER SECTION ======================== */
 
+// Hides the "view completion log" entry points until DataAdapter.listRecords
+// has a real backend (see the comment on that method above).
+const COMPLETION_LOG_AVAILABLE = false;
+
 // ─── Identity + questions, both pulled from the live portal APIs ───────────
-// ASSUMED endpoint (not yet confirmed live -- see chat): GET
-//   it_policy_awareness/questions?employeeId=<EmployeeNumber>
-// -> { error: false, message: "Success",
-//      employee: { name, employeeId, entity, department },   // optional
-//      data: [ { questionNo, chapter, question, responseType, note,
-//                options: [ { optionNo, option, correct: "Yes"|"No" } ] } ] }
-// The "employee" block is what fills the intro screen automatically; if the
-// real endpoint doesn't send it (or names the fields differently), the
-// manual-entry form on the intro screen still works as a fallback.
-async function fetchITQuestions(employeeId){
-  const res = await fetch(`${API_BASE}/it_policy_awareness/questions?employeeId=${encodeURIComponent(employeeId)}`, {
+// GET /api/it_policy_awareness/questions.php -- per the integration
+// requirements doc (Section 8.1 / Rule 3), this response must NOT contain
+// the correct answer, so nothing here reads or stores a "correct" option
+// index. entity is required (the live endpoint 400s without it); employeeId
+// and trainingCode are optional.
+// -> { status: "success",
+//      questions: [ { questionNo, chapter, question, responseType,
+//                options: [ { optionNo, option } ] } ] }
+// The live endpoint doesn't currently send back an "employee" block, so the
+// manual-entry form on the intro screen is the real path for name/dept --
+// this is read defensively in case that's added later.
+async function fetchITQuestions(employeeId, entity, trainingCode){
+  const params = new URLSearchParams({ entity });
+  if(employeeId) params.set("employeeId", employeeId);
+  if(trainingCode) params.set("trainingCode", trainingCode);
+  const res = await fetch(`${API_BASE}/it_policy_awareness/questions.php?${params.toString()}`, {
     method: "GET",
     headers: policyAwarenessHeaders()
   });
   const json = await res.json();
-  if(!res.ok || json.error) throw new Error(json.message || "Could not load the knowledge check questions");
+  if(!res.ok || json.status !== "success") throw new Error(json.message || "Could not load the knowledge check questions");
 
-  const questions = (json.data || []).map(q => ({
+  const questions = (json.questions || []).map(q => ({
     questionNo: q.questionNo,
     chapter: q.chapter,
     q: q.question,
     note: q.note,
     opts: (q.options || []).map(o => o.option),
-    optionNos: (q.options || []).map(o => o.optionNo),
-    correct: (q.options || []).findIndex(o => String(o.correct).toLowerCase() === "yes")
+    optionNos: (q.options || []).map(o => o.optionNo)
   }));
 
   return { questions, employee: json.employee || null };
@@ -314,7 +367,7 @@ async function fetchITQuestions(employeeId){
 async function fetchEmployeeNumber(username){
   const res = await fetch(`${API_BASE}/user/info?username=${encodeURIComponent(username)}`, {
     method: "GET",
-    headers: { Authorization: localStorage.getItem("LOGIN_INFO") || "" }
+    headers: portalAuthHeaders()
   });
   const json = await res.json();
   if(!res.ok || json.error || !json.data) throw new Error(json.message || "Could not resolve employee number");
@@ -340,8 +393,9 @@ let state = {
   questions: [],
   chapterStatus: {},     // id -> {opened, viewed, openedAt}
   openChapterId: null,
-  qIndex: 0, answers: [], pendingSubmissions: [], showFeedback: false,
-  attemptCount: 0,
+  qIndex: 0, pendingSubmissions: [], showFeedback: false,
+  attemptNo: null, attemptCount: 0,
+  priorCompletion: null,
   logFilter: ""
 };
 CHAPTERS.forEach(c => state.chapterStatus[c.id] = { viewed: false, timer: null });
@@ -380,8 +434,12 @@ async function boot(){
       state.employeeId = await fetchEmployeeNumber(params.username);
     }
 
-    if(state.employeeId){
-      const { questions, employee } = await fetchITQuestions(state.employeeId);
+    // entity is required on every it_policy_awareness/*.php call, and the
+    // only source for it today is the ?entity= URL param -- the employee
+    // lookup above doesn't return one. Without it, skip straight to the
+    // manual-entry intro form (its required entity dropdown fills the gap).
+    if(state.employeeId && state.entity){
+      const { questions, employee } = await fetchITQuestions(state.employeeId, state.entity, TRAINING_CODE);
       state.questions = questions;
       if(employee){
         state.name = employee.name || state.name;
@@ -389,6 +447,12 @@ async function boot(){
         state.entity = employee.entity || state.entity;
         state.department = employee.department || state.department;
       }
+      // GET /api/it_policy_awareness/completion.php -- best-effort only, so
+      // a returning employee sees their existing status instead of being
+      // forced to retake blind. Never blocks getting to the intro screen.
+      try{
+        state.priorCompletion = await DataAdapter.getCompletion({ employeeId: state.employeeId, entity: state.entity, trainingCode: TRAINING_CODE });
+      }catch(e){ state.priorCompletion = null; }
     }
   }catch(e){
     // Auto-prefill/auto-fetch failed (e.g. NAV unreachable) -- fall through
@@ -404,11 +468,16 @@ async function boot(){
 function renderIntro(){
   const prefilled = !!(state.name && state.employeeId && state.entity);
   const entityOptions = ENTITIES.map(e => `<option value="${escapeHtml(e)}" ${state.entity===e?"selected":""}>${escapeHtml(e)}</option>`).join("");
+  const pc = state.priorCompletion;
   app.innerHTML = `
     <span class="chapter-tag">Policy Awareness Portal</span>
     <h1>IT Security Policy — Staff Awareness</h1>
     <p class="sub">Two steps: review the six policy chapters that directly affect your day-to-day work, then complete a short knowledge check. Takes about 8 minutes in total.</p>
     <div class="scope"><strong>Covers:</strong> Acceptable Use &middot; AI Governance &middot; Social Media &middot; Data Loss Prevention &middot; Physical Security &middot; Email</div>
+    ${pc && pc.completed && pc.passed ? `
+      <div class="feedback good" style="margin-top:18px;">
+        You've already completed this training — scored <b>${Math.round(pc.score)}%</b> on ${new Date(pc.completedDate).toLocaleDateString()}. You can retake it below if you'd like, but it isn't required.
+      </div>` : ""}
     ${prefilled ? `
       <div class="meta-box" style="margin-top:18px;">
         <div><b>Name:</b> ${escapeHtml(state.name)}</div>
@@ -433,7 +502,7 @@ function renderIntro(){
       <span></span>
       <button class="btn" id="start-btn">Begin</button>
     </div>
-    <button class="footer-link" id="log-link">View completion log</button>
+    ${COMPLETION_LOG_AVAILABLE ? `<button class="footer-link" id="log-link">View completion log</button>` : ""}
   `;
   document.getElementById("start-btn").onclick = async () => {
     if(!prefilled){
@@ -454,7 +523,7 @@ function renderIntro(){
       startBtn.disabled = true;
       startBtn.textContent = "Loading questions…";
       try{
-        const { questions, employee } = await fetchITQuestions(state.employeeId);
+        const { questions, employee } = await fetchITQuestions(state.employeeId, state.entity, TRAINING_CODE);
         state.questions = questions;
         if(employee){
           state.name = employee.name || state.name;
@@ -473,11 +542,37 @@ function renderIntro(){
     state.screen = "chapters";
     render();
   };
-  document.getElementById("log-link").onclick = () => { state.screen = "log"; render(); };
+  const logLink = document.getElementById("log-link");
+  if(logLink) logLink.onclick = () => { state.screen = "log"; render(); };
 }
 
 function allChaptersViewed(){
   return CHAPTERS.every(c => state.chapterStatus[c.id].viewed);
+}
+
+// POST /api/it_policy_awareness/start-attempt.php, then moves to the quiz
+// screen using the attemptNo NAV hands back. Shared by "Continue to
+// knowledge check" and both retake buttons, since a retake is a new attempt
+// per Rule 5 (a completed attempt is never modified in place).
+async function startAttemptAndGoToQuiz(triggerBtn, errEl){
+  const originalText = triggerBtn.textContent;
+  triggerBtn.disabled = true;
+  triggerBtn.textContent = "Starting…";
+  if(errEl) errEl.style.display = "none";
+  try{
+    const result = await DataAdapter.startAttempt({ employeeId: state.employeeId, entity: state.entity, trainingCode: TRAINING_CODE });
+    state.attemptNo = result.attemptNo;
+    state.attemptCount += 1;
+    state.screen = "quiz"; state.qIndex = 0; state.pendingSubmissions = []; state.showFeedback = false;
+    render();
+  }catch(e){
+    triggerBtn.disabled = false;
+    triggerBtn.textContent = originalText;
+    if(errEl){
+      errEl.textContent = friendlyError(e, "Could not start the knowledge check. Please try again.");
+      errEl.style.display = "block";
+    }
+  }
 }
 
 function renderChapters(){
@@ -488,6 +583,7 @@ function renderChapters(){
     <h1>Review Each Chapter</h1>
     <p class="sub">Open each section below and read it. It unlocks automatically after a few seconds so you have time to actually read it.</p>
     <div class="chap-list" id="chap-list"></div>
+    <div id="chapters-err" class="err" style="display:none;"></div>
     <div class="row-btns">
       <span></span>
       <button class="btn" id="continue-btn" ${allChaptersViewed() ? "" : "disabled"}>Continue to knowledge check</button>
@@ -532,8 +628,7 @@ function renderChapters(){
   const cb = document.getElementById("continue-btn");
   if(cb) cb.onclick = () => {
     if(!allChaptersViewed()) return;
-    state.screen = "quiz"; state.qIndex = 0; state.answers = []; state.pendingSubmissions = []; state.showFeedback = false;
-    render();
+    startAttemptAndGoToQuiz(cb, document.getElementById("chapters-err"));
   };
 }
 
@@ -554,33 +649,42 @@ function renderQuiz(){
     </div>
   `;
   const optsEl = document.getElementById("opts");
+  const qIndexAtRender = state.qIndex;
   q.opts.forEach((opt, i) => {
     const b = document.createElement("button");
     b.className = "opt";
     b.textContent = opt;
-    b.onclick = () => {
+    b.onclick = async () => {
       if(state.showFeedback) return;
       state.showFeedback = true;
-      const isCorrect = i === q.correct;
       [...optsEl.children].forEach((el, j) => {
-        el.classList.remove("selected");
-        if(j === q.correct) el.classList.add("correct");
-        else if(j === i && !isCorrect) el.classList.add("incorrect");
+        el.classList.toggle("selected", j === i);
+        el.disabled = true;
       });
-      document.getElementById("fb").innerHTML = `<div class="feedback ${isCorrect ? "good" : "bad"}">${isCorrect ? "Correct. " : "Not quite. "}${q.note}</div>`;
-      document.getElementById("next-btn").disabled = false;
-      state.answers[state.qIndex] = isCorrect;
+      document.getElementById("fb").innerHTML = `<div class="feedback">Checking your answer…</div>`;
 
-      // Fire the answer off to NAV immediately rather than waiting for the
-      // final submit -- don't block the Next button on it, but track the
-      // promise so finishQuiz() can make sure they've all landed first.
-      state.pendingSubmissions.push(DataAdapter.submitAnswer({
-        employeeId: state.employeeId,
+      // The question-retrieval API never tells us which option is correct
+      // (Rule 3), so correctness only comes back once NAV has recorded this
+      // specific pick. Track the promise too, so finishQuiz() can make sure
+      // every answer has actually landed before completing the attempt.
+      const submission = DataAdapter.submitAnswer({
+        attemptNo: state.attemptNo,
         entity: state.entity,
-        attempt: state.attemptCount + 1,
         questionNo: q.questionNo,
         selectedOptionNo: q.optionNos[i]
-      }));
+      });
+      state.pendingSubmissions.push(submission);
+      const { ok, isCorrect } = await submission;
+
+      if(state.qIndex !== qIndexAtRender) return; // moved on already
+      const fb = document.getElementById("fb");
+      if(typeof isCorrect === "boolean"){
+        optsEl.children[i].classList.add(isCorrect ? "correct" : "incorrect");
+        fb.innerHTML = `<div class="feedback ${isCorrect ? "good" : "bad"}">${isCorrect ? "Correct. " : "Not quite. "}${q.note || ""}</div>`;
+      } else {
+        fb.innerHTML = `<div class="feedback">${ok ? "Answer recorded." : "Could not confirm your answer right now — it will be scored when you finish."} ${q.note || ""}</div>`;
+      }
+      document.getElementById("next-btn").disabled = false;
     };
     optsEl.appendChild(b);
   });
@@ -595,38 +699,30 @@ function renderQuiz(){
 }
 
 async function finishQuiz(){
-  // Locally-computed fallback, used only if NAV's final response doesn't
-  // come back -- so the user still sees a result instead of a dead end.
-  const localScore = state.answers.filter(Boolean).length;
-  const localTotal = state.questions.length;
-  state.attemptCount += 1;
-
-  const record = {
+  const base = {
     name: state.name, employeeId: state.employeeId, department: state.department, entity: state.entity,
     chaptersViewed: CHAPTERS.length, chaptersTotal: CHAPTERS.length,
-    attempt: state.attemptCount,
-    timestamp: new Date().toISOString()
+    attemptNo: state.attemptNo, attemptCount: state.attemptCount
   };
 
   state.saveError = null;
   try{
     await Promise.allSettled(state.pendingSubmissions);
-    const result = await DataAdapter.finalizeRecord(record);
-    state.lastRecord = Object.assign({}, record, {
-      chaptersViewed: result.chaptersViewed ?? record.chaptersViewed,
-      chaptersTotal: result.chaptersTotal ?? record.chaptersTotal,
-      score: result.score,
-      total: result.total,
+    const result = await DataAdapter.completeAttempt({ attemptNo: state.attemptNo, entity: state.entity });
+    state.lastRecord = Object.assign({}, base, {
+      attemptNo: result.attemptNo || state.attemptNo,
+      score: result.correctAnswers,
+      total: result.totalQuestions,
       passed: result.passed,
-      attempt: result.attempt ?? record.attempt,
-      overallComplete: result.overallComplete
+      completedDate: result.completedDate || new Date().toISOString()
     });
   }catch(e){
-    state.saveError = "Could not submit your completion to NAV. Please notify IT -- your local result is shown below.";
-    const passed = (localScore / localTotal) >= PASS_THRESHOLD;
-    state.lastRecord = Object.assign({}, record, {
-      score: localScore, total: localTotal, passed, overallComplete: passed
-    });
+    // Per-question correctness is never sent to the browser (Rule 3), so
+    // there is no honest local score to fall back to here -- the live
+    // submit-answer.php response never includes isCorrect. Surface the
+    // failure plainly instead of fabricating a result.
+    state.saveError = friendlyError(e, "Could not submit your completion to NAV. Please notify IT and try again.");
+    state.lastRecord = null;
   }
 
   state.screen = "result";
@@ -635,35 +731,54 @@ async function finishQuiz(){
 
 function renderResult(){
   const r = state.lastRecord;
+
+  // completeAttempt failed outright -- answers were recorded as the
+  // employee went, but NAV never confirmed a final score. There is no
+  // honest local score to show (correctness is never sent to the browser),
+  // so this is a plain failure state rather than a fabricated result.
+  if(!r){
+    app.innerHTML = `
+      <div class="cert flagged">
+        <div class="stamp">!</div>
+        <h1>Could not submit your results</h1>
+        <p style="text-align:left;font-size:14px;color:var(--muted);">${escapeHtml(state.saveError || "Something went wrong submitting your completion.")} Your chapter reviews and answers are saved — you can try submitting again.</p>
+        <div class="row-btns" style="justify-content:center;gap:12px;">
+          <button class="btn" id="retry-complete-btn">Try again</button>
+        </div>
+      </div>
+    `;
+    document.getElementById("retry-complete-btn").onclick = () => finishQuiz();
+    return;
+  }
+
   const pct = Math.round((r.score / r.total) * 100);
   app.innerHTML = `
     <div class="cert ${r.passed ? "" : "flagged"}">
       <div class="stamp">${r.passed ? "&#10003;" : "!"}</div>
       <h1>${r.passed ? "Awareness confirmed" : "Not yet complete"}</h1>
-      <div class="score">Chapters reviewed: <b>${r.chaptersViewed}/${r.chaptersTotal}</b> &middot; Quiz: <b>${r.score}/${r.total}</b> (${pct}%)${r.attempt > 1 ? ` — attempt ${r.attempt}` : ""}</div>
+      <div class="score">Chapters reviewed: <b>${r.chaptersViewed}/${r.chaptersTotal}</b> &middot; Quiz: <b>${r.score}/${r.total}</b> (${pct}%)${r.attemptCount > 1 ? ` — attempt ${r.attemptCount}` : ""}</div>
       <div class="meta-box">
         <div><b>Name:</b> ${escapeHtml(r.name)}</div>
         <div><b>Employee ID:</b> ${escapeHtml(r.employeeId)}</div>
         <div><b>Entity:</b> ${escapeHtml(r.entity || "—")}</div>
         <div><b>Department:</b> ${escapeHtml(r.department)}</div>
-        <div><b>Date:</b> ${new Date(r.timestamp).toLocaleString()}</div>
+        <div><b>Date:</b> ${new Date(r.completedDate).toLocaleString()}</div>
       </div>
       <p style="text-align:left;font-size:14px;color:var(--muted);">
         ${r.passed
           ? "This confirms you've reviewed all six policy chapters and passed the knowledge check. Your completion has been logged."
           : "A pass score of 75% is required for this to count as complete. Your chapter reviews are saved — you only need to retake the knowledge check."}
       </p>
-      ${state.saveError ? `<div class="err">${state.saveError}</div>` : ""}
+      <div id="result-err" class="err" style="display:none;"></div>
       <div class="row-btns" style="justify-content:center;gap:12px;">
         ${r.passed
-          ? `<button class="btn secondary" id="retake-btn">Retake anyway</button><button class="btn" id="log-btn">View completion log</button>`
+          ? `<button class="btn secondary" id="retake-btn">Retake anyway</button>${COMPLETION_LOG_AVAILABLE ? `<button class="btn" id="log-btn">View completion log</button>` : ""}`
           : `<button class="btn" id="retake-btn">Retake quiz now</button>`}
       </div>
     </div>
   `;
-  document.getElementById("retake-btn").onclick = () => {
-    state.screen = "quiz"; state.qIndex = 0; state.answers = []; state.pendingSubmissions = []; state.showFeedback = false;
-    render();
+  document.getElementById("retake-btn").onclick = (e) => {
+    startAttemptAndGoToQuiz(e.target, document.getElementById("result-err"));
   };
   const logBtn = document.getElementById("log-btn");
   if(logBtn) logBtn.onclick = () => { state.screen = "log"; render(); };
