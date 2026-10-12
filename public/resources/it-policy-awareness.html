@@ -83,6 +83,25 @@
   .empty{color:var(--muted);font-size:13.5px;text-align:center;padding:20px 0;}
   .err{color:var(--flag);font-size:13px;margin-top:8px;}
 
+  /* Toast notifications */
+  .toast-container{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;}
+  .toast{display:flex;align-items:center;gap:12px;padding:14px 18px;border-radius:8px;box-shadow:0 4px 12px rgba(16,24,40,.15);min-width:280px;max-width:420px;animation:slideIn .3s ease;}
+  @keyframes slideIn{from{opacity:0;transform:translateX(100%);}to{opacity:1;transform:translateX(0);}}
+  .toast.success{background:var(--good-bg);border-left:4px solid var(--good);color:var(--good);}
+  .toast.error{background:var(--flag-bg);border-left:4px solid var(--flag);color:var(--flag);}
+  .toast.info{background:var(--navy);border-left:4px solid var(--navy-light);color:#fff;}
+  .toast .icon{flex:none;font-size:18px;}
+  .toast .msg{flex:1;font-size:14px;line-height:1.4;}
+  .toast .close{flex:none;background:none;border:none;color:inherit;font-size:18px;cursor:pointer;opacity:.6;padding:0 4px;}
+  .toast .close:hover{opacity:1;}
+
+  /* Confirmation checkbox */
+  .confirm-box{margin-top:16px;padding:14px 16px;background:var(--bg);border-radius:8px;border:1px solid var(--line);}
+  .confirm-box label{display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin:0;font-size:13.5px;color:var(--ink);}
+  .confirm-box input[type=checkbox]{flex:none;margin-top:2px;width:18px;height:18px;accent-color:var(--navy);}
+  .confirm-box .confirm-text{line-height:1.5;}
+  .confirm-box .confirm-text strong{color:var(--navy);}
+
   /* Chapter review screen */
   .chap-list{margin-top:18px;}
   .chap{border:1px solid var(--line);border-radius:8px;margin-bottom:10px;overflow:hidden;}
@@ -201,9 +220,9 @@ const MIN_VIEW_SECONDS = 8;
 // the integration requirements doc's own example (spec §9).
 const TRAINING_CODE = "EHS/MIC-SECURITY-2026";
 
-const API_BASE = "https://portal.micglobalrisks.com:8082/portal/v1.0/api";
+const API_BASE = "https://portal.micglobalrisks.com:8082/portal/v1.0/api/it_policy_awareness";
 
-// The confirmed live PHP middleware (api/it_policy_awareness/*.php) guards
+// The confirmed live PHP middleware (api/training/*.php) guards
 // this module with a static shared secret rather than the portal's normal
 // session bearer -- its own comments acknowledge this is a known gap versus
 // the integration doc's ideal ("employee identity from an authenticated
@@ -219,7 +238,7 @@ function policyAwarenessHeaders(extra){
 
 // Existing portal endpoint (same one GlobalState.js's getUserDetails() uses)
 // -- authenticated with the portal's real session bearer, unrelated to the
-// it_policy_awareness module's shared-secret guard above.
+// training module's shared-secret guard above.
 function portalAuthHeaders(extra){
   return Object.assign({ Authorization: localStorage.getItem("LOGIN_INFO") || "" }, extra || {});
 }
@@ -230,21 +249,21 @@ function portalAuthHeaders(extra){
    Every place this tool reads or writes a completion record calls ONLY the
    methods below. Nothing else in this file touches the network directly.
 
-   Endpoints and payload shapes here match the live api/it_policy_awareness/
+   Endpoints and payload shapes here match the live api/training/
    *.php middleware (PolicyAwareness model), which implements the EHS/MIC
    Training Questionnaire integration requirements doc's NAV operations
    (GetTrainingQuestions / StartTrainingAttempt / SubmitTrainingAnswer /
    CompleteTrainingAttempt / GetTrainingCompletion) under flat, non-RESTful
    routes -- entity is required on every call so the middleware can route to
-   the right NAV company (MIC vs EHS), and attemptNo travels in the request
-   body rather than the URL.
+   the right NAV company (MIC vs EHS), and every input travels in the JSON
+   request body rather than the URL (integration spec section 15).
    ============================================================================ */
 const DataAdapter = {
-  // POST /api/it_policy_awareness/start-attempt.php
+  // POST /api/training/attempts
   // Starts a new attempt for this employee + entity + training code and
   // returns the authoritative attemptNo used by every subsequent call.
   async startAttempt({ employeeId, entity, trainingCode = TRAINING_CODE }){
-    const res = await fetch(`${API_BASE}/it_policy_awareness/start-attempt.php`, {
+    const res = await fetch(`${API_BASE}/training/attempts`, {
       method: "POST",
       headers: policyAwarenessHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ employeeId, entity, trainingCode })
@@ -254,7 +273,7 @@ const DataAdapter = {
     return json; // { status, attemptNo, employeeNo, dateStarted }
   },
 
-  // POST /api/it_policy_awareness/submit-answer.php
+  // POST /api/training/answers
   // Submitted the instant an option is picked, so NAV has it immediately
   // instead of waiting for the final submission. Best-effort -- a single
   // dropped submission doesn't block the quiz, but /complete-attempt below
@@ -268,7 +287,7 @@ const DataAdapter = {
   // "answer recorded" message rather than a correct/incorrect one.
   async submitAnswer({ attemptNo, entity, questionNo, selectedOptionNo }){
     try{
-      const res = await fetch(`${API_BASE}/it_policy_awareness/submit-answer.php`, {
+      const res = await fetch(`${API_BASE}/training/answers`, {
         method: "POST",
         headers: policyAwarenessHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ attemptNo, entity, questionNo, selectedOptionNo })
@@ -280,12 +299,12 @@ const DataAdapter = {
     }
   },
 
-  // POST /api/it_policy_awareness/complete-attempt.php
+  // POST /api/training/complete
   // NAV retrieves all answers for the attempt, calculates the score against
   // the configurable pass mark, and records completion -- correctness is
   // never computed client-side.
   async completeAttempt({ attemptNo, entity }){
-    const res = await fetch(`${API_BASE}/it_policy_awareness/complete-attempt.php`, {
+    const res = await fetch(`${API_BASE}/training/complete`, {
       method: "POST",
       headers: policyAwarenessHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ attemptNo, entity })
@@ -295,14 +314,15 @@ const DataAdapter = {
     return json; // { status, attemptNo, totalQuestions, correctAnswers, score, passed, completed, completedDate }
   },
 
-  // GET /api/it_policy_awareness/completion.php
-  // The current employee's own completion status. The live endpoint takes
-  // employeeId + entity as query params (no session-derived identity yet).
+  // POST /api/training/completion
+  // The current employee's own completion status. employeeId + entity travel
+  // in the JSON body (no session-derived identity yet), so nothing is
+  // exposed in the URL.
   async getCompletion({ employeeId, entity, trainingCode = TRAINING_CODE }){
-    const params = new URLSearchParams({ employeeId, entity, trainingCode });
-    const res = await fetch(`${API_BASE}/it_policy_awareness/completion.php?${params.toString()}`, {
-      method: "GET",
-      headers: policyAwarenessHeaders()
+    const res = await fetch(`${API_BASE}/training/completion`, {
+      method: "POST",
+      headers: policyAwarenessHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ employeeId, entity, trainingCode })
     });
     const json = await res.json();
     if(!res.ok || json.status !== "success") throw new Error(json.message || "Could not load your completion status");
@@ -325,39 +345,75 @@ const DataAdapter = {
 // has a real backend (see the comment on that method above).
 const COMPLETION_LOG_AVAILABLE = false;
 
-// ─── Identity + questions, both pulled from the live portal APIs ───────────
-// GET /api/it_policy_awareness/questions.php -- per the integration
-// requirements doc (Section 8.1 / Rule 3), this response must NOT contain
-// the correct answer, so nothing here reads or stores a "correct" option
-// index. entity is required (the live endpoint 400s without it); employeeId
-// and trainingCode are optional.
-// -> { status: "success",
-//      questions: [ { questionNo, chapter, question, responseType,
-//                options: [ { optionNo, option } ] } ] }
-// The live endpoint doesn't currently send back an "employee" block, so the
-// manual-entry form on the intro screen is the real path for name/dept --
-// this is read defensively in case that's added later.
-async function fetchITQuestions(employeeId, entity, trainingCode){
-  const params = new URLSearchParams({ entity });
-  if(employeeId) params.set("employeeId", employeeId);
-  if(trainingCode) params.set("trainingCode", trainingCode);
-  const res = await fetch(`${API_BASE}/it_policy_awareness/questions.php?${params.toString()}`, {
+// Toast notification system
+function initToastContainer(){
+  if(!document.getElementById("toast-container")){
+    const container = document.createElement("div");
+    container.id = "toast-container";
+    container.className = "toast-container";
+    document.body.appendChild(container);
+  }
+}
+function showToast(message, type = "info", duration = 4000){
+  initToastContainer();
+  const container = document.getElementById("toast-container");
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  const icons = { success: "&#10003;", error: "&#9888;", info: "&#9432;" };
+  toast.innerHTML = `<span class="icon">${icons[type] || icons.info}</span><span class="msg">${escapeHtml(message)}</span><button class="close" aria-label="Dismiss">&#215;</button>`;
+  toast.querySelector(".close").onclick = () => toast.remove();
+  container.appendChild(toast);
+  if(duration > 0) setTimeout(() => toast.remove(), duration);
+  return toast;
+}
+
+// Entity mapping from Branch/Department to official entity names
+function mapEntityFromBranch(branch, dept){
+  if(!branch && !dept) return "";
+  const b = (branch || "").toUpperCase();
+  const d = (dept || "").toUpperCase();
+  // MIC indicators
+  if(b.includes("INVESTMENT") || b.includes("MORTGAGE") || b.includes("MIC") || b.includes("BROKER") ||
+     d.includes("MIC") || d.includes("BROKER") || d.includes("INVESTMENT")) {
+    return ENTITIES[0]; // "MIC Global Risks (Insurance Brokers) Limited"
+  }
+  // EHS indicators
+  if(b.includes("HEALTHCARE") || b.includes("EXECUTIVE") || b.includes("EHS") ||
+     d.includes("EHS") || d.includes("HEALTHCARE") || d.includes("EXECUTIVE")) {
+    return ENTITIES[1]; // "Executive Healthcare Solutions Limited"
+  }
+  // Default fallback - could also check Pos, Designation, etc.
+  return "";
+}
+
+// Build full name from API response
+function buildFullName(data){
+  const parts = [data.FirstName, data.MiddleName, data.LastName].filter(Boolean);
+  return parts.join(" ");
+}
+
+// Fetch complete employee details from the portal API
+async function fetchEmployeeDetails(username){
+  const res = await fetch(`${API_BASE}/user/info?username=${encodeURIComponent(username)}`, {
     method: "GET",
-    headers: policyAwarenessHeaders()
+    headers: portalAuthHeaders()
   });
   const json = await res.json();
-  if(!res.ok || json.status !== "success") throw new Error(json.message || "Could not load the knowledge check questions");
-
-  const questions = (json.questions || []).map(q => ({
-    questionNo: q.questionNo,
-    chapter: q.chapter,
-    q: q.question,
-    note: q.note,
-    opts: (q.options || []).map(o => o.option),
-    optionNos: (q.options || []).map(o => o.optionNo)
-  }));
-
-  return { questions, employee: json.employee || null };
+  if(!res.ok || json.error || !json.data) throw new Error(json.message || "Could not resolve employee details");
+  const d = json.data;
+  const fullName = buildFullName(d);
+  const employeeId = d.EmployeeNumber;
+  const department = d.Dept || d.Department || "";
+  const branch = d.Branch || "";
+  const entity = mapEntityFromBranch(branch, department) || (d.CompanyEmail?.includes("ehs") ? ENTITIES[1] : ENTITIES[0]);
+  return {
+    name: fullName,
+    employeeId,
+    department,
+    entity,
+    email: d.CompanyEmail,
+    raw: d
+  };
 }
 
 // Existing portal endpoint (same one GlobalState.js's getUserDetails() uses)
@@ -365,13 +421,8 @@ async function fetchITQuestions(employeeId, entity, trainingCode){
 // the rest of the portal already stores in localStorage.LOGIN_INFO, since
 // this static page shares localStorage with the React app (same origin).
 async function fetchEmployeeNumber(username){
-  const res = await fetch(`${API_BASE}/user/info?username=${encodeURIComponent(username)}`, {
-    method: "GET",
-    headers: portalAuthHeaders()
-  });
-  const json = await res.json();
-  if(!res.ok || json.error || !json.data) throw new Error(json.message || "Could not resolve employee number");
-  return json.data.EmployeeNumber;
+  const details = await fetchEmployeeDetails(username);
+  return details.employeeId;
 }
 
 function getUrlParams(){
@@ -431,13 +482,17 @@ async function boot(){
 
   try{
     if(!state.employeeId && params.username){
-      state.employeeId = await fetchEmployeeNumber(params.username);
+      const details = await fetchEmployeeDetails(params.username);
+      state.name = details.name;
+      state.employeeId = details.employeeId;
+      state.department = details.department;
+      state.entity = details.entity;
+      showToast(`Welcome, ${details.name}! Your details have been loaded.`, "success");
     }
 
-    // entity is required on every it_policy_awareness/*.php call, and the
-    // only source for it today is the ?entity= URL param -- the employee
-    // lookup above doesn't return one. Without it, skip straight to the
-    // manual-entry intro form (its required entity dropdown fills the gap).
+    // entity is required on every api/training/*.php call. If we have
+    // employeeId but no entity (e.g. URL param missing), we'll show the
+    // manual-entry form with the prefilled data so user can confirm/select entity.
     if(state.employeeId && state.entity){
       const { questions, employee } = await fetchITQuestions(state.employeeId, state.entity, TRAINING_CODE);
       state.questions = questions;
@@ -447,7 +502,7 @@ async function boot(){
         state.entity = employee.entity || state.entity;
         state.department = employee.department || state.department;
       }
-      // GET /api/it_policy_awareness/completion.php -- best-effort only, so
+      // POST /api/training/completion -- best-effort only, so
       // a returning employee sees their existing status instead of being
       // forced to retake blind. Never blocks getting to the intro screen.
       try{
@@ -459,6 +514,7 @@ async function boot(){
     // to the intro screen. If identity is still incomplete it shows the
     // manual-entry form; if questions didn't load, "Begin" retries the
     // fetch and surfaces the error there instead.
+    showToast("Could not auto-load your details. Please enter them manually.", "error");
   }
 
   state.screen = "intro";
@@ -484,6 +540,12 @@ function renderIntro(){
         <div><b>Employee ID:</b> ${escapeHtml(state.employeeId)}</div>
         <div><b>Entity:</b> ${escapeHtml(state.entity)}</div>
         ${state.department ? `<div><b>Department:</b> ${escapeHtml(state.department)}</div>` : ""}
+      </div>
+      <div class="confirm-box" id="confirm-box">
+        <label>
+          <input type="checkbox" id="confirm-details" />
+          <span class="confirm-text">I confirm that the above details are correct and belong to me.</span>
+        </label>
       </div>` : `
       <label for="f-name">Full name</label>
       <input type="text" id="f-name" placeholder="e.g. Jane Wanjiru" value="${escapeHtml(state.name)}"/>
@@ -500,10 +562,20 @@ function renderIntro(){
     <div id="intro-err" class="err" style="display:none;"></div>
     <div class="row-btns">
       <span></span>
-      <button class="btn" id="start-btn">Begin</button>
+      <button class="btn" id="start-btn" ${prefilled ? "disabled" : ""}>Begin</button>
     </div>
     ${COMPLETION_LOG_AVAILABLE ? `<button class="footer-link" id="log-link">View completion log</button>` : ""}
   `;
+  
+  // Handle confirmation checkbox for prefilled data
+  if(prefilled){
+    const confirmCheckbox = document.getElementById("confirm-details");
+    const startBtn = document.getElementById("start-btn");
+    confirmCheckbox.addEventListener("change", () => {
+      startBtn.disabled = !confirmCheckbox.checked;
+    });
+  }
+  
   document.getElementById("start-btn").onclick = async () => {
     if(!prefilled){
       const name = document.getElementById("f-name").value.trim();
@@ -514,9 +586,20 @@ function renderIntro(){
         const err = document.getElementById("intro-err");
         err.textContent = "Please fill in all fields, including your entity, to continue.";
         err.style.display = "block";
+        showToast("Please fill in all required fields.", "error");
         return;
       }
       state.name = name; state.employeeId = id; state.entity = entity; state.department = dept;
+      showToast("Details confirmed. Loading policy questions…", "success");
+    } else {
+      // For prefilled, checkbox validation is handled by the disabled button
+      // but double-check here as a safety net
+      const confirmed = document.getElementById("confirm-details")?.checked;
+      if(!confirmed){
+        showToast("Please confirm your details before proceeding.", "error");
+        return;
+      }
+      showToast("Details confirmed. Loading policy questions…", "success");
     }
     if(state.questions.length === 0){
       const startBtn = document.getElementById("start-btn");
@@ -536,6 +619,7 @@ function renderIntro(){
         const err = document.getElementById("intro-err");
         err.textContent = friendlyError(e, "Could not load the knowledge check questions. Please try again.");
         err.style.display = "block";
+        showToast("Failed to load questions. Please try again.", "error");
         return;
       }
     }
@@ -550,7 +634,7 @@ function allChaptersViewed(){
   return CHAPTERS.every(c => state.chapterStatus[c.id].viewed);
 }
 
-// POST /api/it_policy_awareness/start-attempt.php, then moves to the quiz
+// POST /api/training/attempts, then moves to the quiz
 // screen using the attemptNo NAV hands back. Shared by "Continue to
 // knowledge check" and both retake buttons, since a retake is a new attempt
 // per Rule 5 (a completed attempt is never modified in place).
