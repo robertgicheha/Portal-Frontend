@@ -41,6 +41,7 @@
   label{display:block;font-size:13.5px;color:var(--muted);margin:16px 0 5px;}
   input[type=text],select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:7px;font-size:15px;font-family:inherit;color:var(--ink);background:#fff;}
   input[type=text]:focus,select:focus{outline:2px solid var(--navy-light);outline-offset:1px;}
+  input[readonly]{background:var(--bg);color:var(--ink);cursor:not-allowed;}
   .btn{appearance:none;border:none;cursor:pointer;background:var(--navy);color:#fff;font-size:15px;font-weight:600;padding:11px 20px;border-radius:7px;font-family:inherit;}
   .btn:hover{background:var(--navy-light);}
   .btn:disabled{background:#a9b0bd;cursor:not-allowed;}
@@ -221,6 +222,9 @@ const MIN_VIEW_SECONDS = 8;
 const TRAINING_CODE = "EHS/MIC-SECURITY-2026";
 
 const API_BASE = "https://portal.micglobalrisks.com:8082/portal/v1.0/api/it_policy_awareness";
+// Base for the portal's own endpoints (e.g. /user/info), which do NOT live
+// under /it_policy_awareness.
+const PORTAL_API_BASE = "https://portal.micglobalrisks.com:8082/portal/v1.0/api";
 
 // The confirmed live PHP middleware (api/training/*.php) guards
 // this module with a static shared secret rather than the portal's normal
@@ -274,40 +278,47 @@ const DataAdapter = {
   },
 
   // POST /api/training/answers
-  // Submitted the instant an option is picked, so NAV has it immediately
-  // instead of waiting for the final submission. Best-effort -- a single
-  // dropped submission doesn't block the quiz, but /complete-attempt below
-  // will fail server-side (ATTEMPT_COMPLETED / a missing answer) if it
-  // never landed.
-  // NOTE: the live submitTrainingAnswer() only ever returns
-  // { questionNo, recorded } -- no isCorrect field, matching spec §10's
-  // "does not need to be returned at this stage" read literally. The
-  // isCorrect handling below is kept so the UI upgrades automatically if
-  // that ever changes, but today it always falls through to the generic
-  // "answer recorded" message rather than a correct/incorrect one.
-  async submitAnswer({ attemptNo, entity, questionNo, selectedOptionNo }){
-    try{
-      const res = await fetch(`${API_BASE}/training/answers`, {
-        method: "POST",
-        headers: policyAwarenessHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ attemptNo, entity, questionNo, selectedOptionNo })
-      });
-      const json = await res.json();
-      return { ok: res.ok && json.status === "success", isCorrect: json.isCorrect };
-    }catch(e){
-      return { ok: false, isCorrect: undefined };
+  // Submitted the instant an option is picked, so NAV is updated answer by
+  // answer as they come in (like a tallying centre), not in one batch at the
+  // end. Body matches NAV's getITtrainingAnswers(empNumber, attemptNo,
+  // questionNumber, selectedOption); entity is only used by the middleware to
+  // pick the MIC or EHS NAV company.
+  // A dropped send is retried (network errors / 5xx only). If it still fails
+  // the caller shows the error and lets the employee pick again, so no answer
+  // is silently lost.
+  // NOTE: the middleware never returns isCorrect (spec §10), so the UI falls
+  // through to the generic "answer recorded" message.
+  async submitAnswer({ empNumber, attemptNo, entity, questionNumber, selectedOption }){
+    const MAX_TRIES = 3;
+    for(let attempt = 1; attempt <= MAX_TRIES; attempt++){
+      try{
+        const res = await fetch(`${API_BASE}/training/answers`, {
+          method: "POST",
+          headers: policyAwarenessHeaders({ "Content-Type": "application/json" }),
+          body: JSON.stringify({ empNumber, attemptNo, entity, questionNumber, selectedOption })
+        });
+        const json = await res.json();
+        if(res.ok && json.status === "success") return { ok: true, isCorrect: json.isCorrect };
+        // A validation / NAV business rejection (4xx) won't improve on retry
+        if(res.status < 500) return { ok: false, message: json.message, isCorrect: undefined };
+      }catch(e){
+        // network error or unreadable response -- fall through and retry
+      }
+      if(attempt < MAX_TRIES) await new Promise(r => setTimeout(r, 600 * attempt));
     }
+    return { ok: false, isCorrect: undefined };
   },
 
-  // POST /api/training/complete
-  // NAV retrieves all answers for the attempt, calculates the score against
-  // the configurable pass mark, and records completion -- correctness is
-  // never computed client-side.
-  async completeAttempt({ attemptNo, entity }){
-    const res = await fetch(`${API_BASE}/training/complete`, {
+  // POST /api/training/complete-training
+  // Called once after the last question. Maps to NAV's
+  // submitQuestions(empNumber, attemptNo), which finalises the attempt from
+  // the answers NAV already received one by one -- correctness is never
+  // computed client-side.
+  async completeAttempt({ empNumber, attemptNo, entity }){
+    const res = await fetch(`${API_BASE}/training/complete-training`, {
       method: "POST",
       headers: policyAwarenessHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ attemptNo, entity })
+      body: JSON.stringify({ empNumber, attemptNo, entity })
     });
     const json = await res.json();
     if(!res.ok || json.status !== "success") throw new Error(json.message || "Could not submit your completion to NAV");
@@ -386,6 +397,48 @@ function mapEntityFromBranch(branch, dept){
   return "";
 }
 
+// Maps the company name NAV returns to one of the official entity names
+function normalizeEntity(name){
+  const n = (name || "").toUpperCase();
+  if(!n) return "";
+  if(n.includes("MIC")) return ENTITIES[0];
+  if(n.includes("EXECUTIVE") || n.includes("EHS")) return ENTITIES[1];
+  return "";
+}
+
+// Fetches this employee's questions (and the employee header NAV sends back:
+// full name, company, department) from the middleware. Shapes NAV's fields
+// into what renderQuiz() expects (q.q, q.opts, q.optionNos).
+async function fetchITQuestions(employeeId, entity){
+  const qs = new URLSearchParams({ employeeId, entity });
+  const res = await fetch(`${API_BASE}/training/questions?${qs}`, {
+    method: "GET",
+    headers: policyAwarenessHeaders()
+  });
+  const json = await res.json();
+  if(!res.ok || json.status !== "success") throw new Error(json.message || "Could not load the knowledge check questions");
+
+  const questions = (json.questions || []).map(q => ({
+    questionNo: q.questionNo,
+    chapter: q.chapter,
+    q: q.question,
+    opts: q.options.map(o => o.option),
+    optionNos: q.options.map(o => o.optionNo),
+    note: q.note || ""
+  }));
+  const e = json.employee || {};
+  return {
+    questions,
+    attemptNo: Number(json.attemptNo) || null,
+    employee: {
+      name: e.name || "",
+      employeeId: e.employeeId || "",
+      entity: normalizeEntity(e.company),
+      department: e.department || ""
+    }
+  };
+}
+
 // Build full name from API response
 function buildFullName(data){
   const parts = [data.FirstName, data.MiddleName, data.LastName].filter(Boolean);
@@ -394,7 +447,7 @@ function buildFullName(data){
 
 // Fetch complete employee details from the portal API
 async function fetchEmployeeDetails(username){
-  const res = await fetch(`${API_BASE}/user/info?username=${encodeURIComponent(username)}`, {
+  const res = await fetch(`${PORTAL_API_BASE}/user/info?username=${encodeURIComponent(username)}`, {
     method: "GET",
     headers: portalAuthHeaders()
   });
@@ -445,7 +498,7 @@ let state = {
   chapterStatus: {},     // id -> {opened, viewed, openedAt}
   openChapterId: null,
   qIndex: 0, pendingSubmissions: [], showFeedback: false,
-  attemptNo: null, attemptCount: 0,
+  attemptNo: null, attemptUsed: false, attemptCount: 0,
   priorCompletion: null,
   logFilter: ""
 };
@@ -494,8 +547,9 @@ async function boot(){
     // employeeId but no entity (e.g. URL param missing), we'll show the
     // manual-entry form with the prefilled data so user can confirm/select entity.
     if(state.employeeId && state.entity){
-      const { questions, employee } = await fetchITQuestions(state.employeeId, state.entity, TRAINING_CODE);
+      const { questions, employee, attemptNo } = await fetchITQuestions(state.employeeId, state.entity, TRAINING_CODE);
       state.questions = questions;
+      state.attemptNo = attemptNo;
       if(employee){
         state.name = employee.name || state.name;
         state.employeeId = employee.employeeId || state.employeeId;
@@ -535,12 +589,14 @@ function renderIntro(){
         You've already completed this training — scored <b>${Math.round(pc.score)}%</b> on ${new Date(pc.completedDate).toLocaleDateString()}. You can retake it below if you'd like, but it isn't required.
       </div>` : ""}
     ${prefilled ? `
-      <div class="meta-box" style="margin-top:18px;">
-        <div><b>Name:</b> ${escapeHtml(state.name)}</div>
-        <div><b>Employee ID:</b> ${escapeHtml(state.employeeId)}</div>
-        <div><b>Entity:</b> ${escapeHtml(state.entity)}</div>
-        ${state.department ? `<div><b>Department:</b> ${escapeHtml(state.department)}</div>` : ""}
-      </div>
+      <label for="f-name">Full name</label>
+      <input type="text" id="f-name" value="${escapeHtml(state.name)}" readonly/>
+      <label for="f-id">Employee ID</label>
+      <input type="text" id="f-id" value="${escapeHtml(state.employeeId)}" readonly/>
+      <label for="f-entity">Entity</label>
+      <input type="text" id="f-entity" value="${escapeHtml(state.entity)}" readonly/>
+      <label for="f-dept">Department</label>
+      <input type="text" id="f-dept" value="${escapeHtml(state.department || "—")}" readonly/>
       <div class="confirm-box" id="confirm-box">
         <label>
           <input type="checkbox" id="confirm-details" />
@@ -606,8 +662,9 @@ function renderIntro(){
       startBtn.disabled = true;
       startBtn.textContent = "Loading questions…";
       try{
-        const { questions, employee } = await fetchITQuestions(state.employeeId, state.entity, TRAINING_CODE);
+        const { questions, employee, attemptNo } = await fetchITQuestions(state.employeeId, state.entity, TRAINING_CODE);
         state.questions = questions;
+        state.attemptNo = attemptNo;
         if(employee){
           state.name = employee.name || state.name;
           state.entity = employee.entity || state.entity;
@@ -634,8 +691,9 @@ function allChaptersViewed(){
   return CHAPTERS.every(c => state.chapterStatus[c.id].viewed);
 }
 
-// POST /api/training/attempts, then moves to the quiz
-// screen using the attemptNo NAV hands back. Shared by "Continue to
+// Moves to the quiz screen. The first attempt's attemptNo arrived with the
+// questions fetch; once it has been used (a retake) the questions are
+// re-fetched so NAV hands back a fresh attempt. Shared by "Continue to
 // knowledge check" and both retake buttons, since a retake is a new attempt
 // per Rule 5 (a completed attempt is never modified in place).
 async function startAttemptAndGoToQuiz(triggerBtn, errEl){
@@ -644,8 +702,13 @@ async function startAttemptAndGoToQuiz(triggerBtn, errEl){
   triggerBtn.textContent = "Starting…";
   if(errEl) errEl.style.display = "none";
   try{
-    const result = await DataAdapter.startAttempt({ employeeId: state.employeeId, entity: state.entity, trainingCode: TRAINING_CODE });
-    state.attemptNo = result.attemptNo;
+    if(!state.attemptNo || state.attemptUsed){
+      const fresh = await fetchITQuestions(state.employeeId, state.entity, TRAINING_CODE);
+      state.questions = fresh.questions;
+      state.attemptNo = fresh.attemptNo;
+    }
+    if(!state.attemptNo) throw new Error("NAV did not return an attempt number. Please notify IT.");
+    state.attemptUsed = true;
     state.attemptCount += 1;
     state.screen = "quiz"; state.qIndex = 0; state.pendingSubmissions = []; state.showFeedback = false;
     render();
@@ -752,16 +815,25 @@ function renderQuiz(){
       // specific pick. Track the promise too, so finishQuiz() can make sure
       // every answer has actually landed before completing the attempt.
       const submission = DataAdapter.submitAnswer({
+        empNumber: state.employeeId,
         attemptNo: state.attemptNo,
         entity: state.entity,
-        questionNo: q.questionNo,
-        selectedOptionNo: q.optionNos[i]
+        questionNumber: q.questionNo,
+        selectedOption: q.optionNos[i]
       });
       state.pendingSubmissions.push(submission);
-      const { ok, isCorrect } = await submission;
+      const { ok, isCorrect, message } = await submission;
 
       if(state.qIndex !== qIndexAtRender) return; // moved on already
       const fb = document.getElementById("fb");
+      if(!ok){
+        // NAV never got this answer. Keep "Next" locked and let the employee
+        // pick again, so no answer is silently lost.
+        fb.innerHTML = `<div class="feedback bad">${escapeHtml(message || "Could not save your answer. Please check your connection and select your answer again.")}</div>`;
+        [...optsEl.children].forEach(el => { el.disabled = false; el.classList.remove("selected"); });
+        state.showFeedback = false;
+        return;
+      }
       if(typeof isCorrect === "boolean"){
         optsEl.children[i].classList.add(isCorrect ? "correct" : "incorrect");
         fb.innerHTML = `<div class="feedback ${isCorrect ? "good" : "bad"}">${isCorrect ? "Correct. " : "Not quite. "}${q.note || ""}</div>`;
@@ -792,7 +864,7 @@ async function finishQuiz(){
   state.saveError = null;
   try{
     await Promise.allSettled(state.pendingSubmissions);
-    const result = await DataAdapter.completeAttempt({ attemptNo: state.attemptNo, entity: state.entity });
+    const result = await DataAdapter.completeAttempt({ empNumber: state.employeeId, attemptNo: state.attemptNo, entity: state.entity });
     state.lastRecord = Object.assign({}, base, {
       attemptNo: result.attemptNo || state.attemptNo,
       score: result.correctAnswers,
@@ -832,6 +904,27 @@ function renderResult(){
       </div>
     `;
     document.getElementById("retry-complete-btn").onclick = () => finishQuiz();
+    return;
+  }
+
+  // NAV's submitQuestions may only acknowledge the submission without sending
+  // back a score. Show a neutral confirmation rather than a fake 0% result.
+  if(!r.total){
+    app.innerHTML = `
+      <div class="cert">
+        <div class="stamp">&#10003;</div>
+        <h1>Responses submitted</h1>
+        <div class="score">Chapters reviewed: <b>${r.chaptersViewed}/${r.chaptersTotal}</b>${r.attemptCount > 1 ? ` &mdash; attempt ${r.attemptCount}` : ""}</div>
+        <div class="meta-box">
+          <div><b>Name:</b> ${escapeHtml(r.name)}</div>
+          <div><b>Employee ID:</b> ${escapeHtml(r.employeeId)}</div>
+          <div><b>Entity:</b> ${escapeHtml(r.entity || "—")}</div>
+          <div><b>Department:</b> ${escapeHtml(r.department)}</div>
+          <div><b>Date:</b> ${new Date(r.completedDate).toLocaleString()}</div>
+        </div>
+        <p style="text-align:left;font-size:14px;color:var(--muted);">Your answers have been submitted and your completion has been recorded.</p>
+      </div>
+    `;
     return;
   }
 
